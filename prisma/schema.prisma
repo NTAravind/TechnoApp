@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Product {
+  id         Int         @id @default(autoincrement())
+  name       String
+  size       Int[]       @default([])
+  weight     String?
+  imgurl     String?
+  unit       String
+  price      Float
+  packaging  Int?
+  LooseSell  Boolean     @default(false)
+  descr      String?
+  sku        String      @unique
+  categoryId Int
+  isVisible  Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  orderItems OrderItem[]
+  category   Category    @relation(fields: [categoryId], references: [id])
+
+  @@index([categoryId])
+}
+
+model Customer {
+  id            Int      @id @default(autoincrement())
+  name          String
+  phone         String   @unique
+  email         String?  @unique
+  isDistributor Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  Address       String?
+  pincode       String?
+  orders        Order[]
+}
+
+model Order {
+  id         String      @id @default(uuid())
+  customerId Int
+  paid       Boolean
+  paymentid  String
+  delivered  Boolean
+  complete   Boolean
+  total      Float
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  items      OrderItem[]
+
+  @@index([customerId])
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   String
+  productId Int
+  quantity  Int
+  price     Float
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId, productId])
+}

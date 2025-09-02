@@ -1,0 +1,25 @@
+import type { MetadataRoute } from 'next'
+ 
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: 'Techno Industries',
+    short_name: 'Techno',
+    description: 'Techno Industries - Agriculture Industrial Solutions',
+    start_url: '/',
+    display: 'standalone',
+    background_color: '#22c55e',
+    theme_color: '#f9fafb',
+    icons: [
+      {
+        src: '/assets/android-chrome-192x192.png',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+      {
+        src: '/assets/android-chrome-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+    ],
+  }
+}
