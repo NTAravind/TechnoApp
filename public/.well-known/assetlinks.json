@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "site.infiniagc.techno.twa",
+        "sha256_cert_fingerprints": ["08:74:94:7D:F2:8A:83:06:7C:72:8F:B7:93:04:2A:C4:C2:F4:A2:9A:55:04:34:2D:C6:DF:23:2E:3B:30:64:FF"]
+      }
+    }]
