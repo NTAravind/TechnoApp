@@ -1,0 +1,49 @@
+{
+  "packageId": "site.infiniagc.techno.twa",
+  "host": "techno.infiniagc.site",
+  "name": "Techno Industries",
+  "launcherName": "Techno",
+  "display": "standalone",
+  "themeColor": "#F9FAFB",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#22C55E",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://techno.infiniagc.site/assets/android-chrome-512x512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "/home/aravind/techno/android.keystore",
+    "alias": "techno"
+  },
+  "appVersionName": "3",
+  "appVersionCode": 3,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://techno.infiniagc.site/manifest.json",
+  "fallbackType": "standalone",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://techno.infiniagc.site/",
+  "minSdkVersion": 21,
+  "orientation": "default",
+  "fingerprints": [
+    {
+      "value": "08:74:94:7D:F2:8A:83:06:7C:72:8F:B7:93:04:2A:C4:C2:F4:A2:9A:55:04:34:2D:C6:DF:23:2E:3B:30:64:FF"
+    }
+  ],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "appVersion": "3"
+}
