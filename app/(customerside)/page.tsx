@@ -1,13 +1,11 @@
 import { auth } from '@/auth'
-import { PrismaClient } from '@/app/generated/prisma'
+import prisma from '@/lib/prisma'
 import { unstable_cache } from 'next/cache'
-import { revalidateTag } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { HomePageClient } from './components/HomeClient'
 import NotificationSubscriptionPrompt from '@/app/(customerside)/components/PushNotification'
 import type { Metadata } from 'next'
 
-const prisma = new PrismaClient()
 
 // Static category mappings for better mobile experience and fallback
 const STATIC_CATEGORIES = [
@@ -305,22 +303,6 @@ async function getCategoryProductsCount(categoryId: number) {
       tags: ['categories', 'products', `category-${categoryId}`]
     }
   )()
-}
-
-// Cache revalidation actions
-export async function revalidateHomeCache() {
-  'use server'
-  revalidateTag('products')
-  revalidateTag('categories')
-  revalidateTag('featured')
-  revalidateTag('latest')
-  revalidateTag('stats')
-}
-
-export async function revalidateCustomerCache(customerId: number) {
-  'use server'
-  revalidateTag(`customer-${customerId}`)
-  revalidateTag('orders')
 }
 
 function getRelativeDate(date: Date) {

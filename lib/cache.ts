@@ -393,3 +393,32 @@ export async function getPopularSearchTerms(limit: number = 10) {
     return [];
   }
 }
+
+
+import { revalidateTag } from 'next/cache'
+
+// Cache revalidation actions
+export async function revalidateHomeCache() {
+  revalidateTag('products')
+  revalidateTag('categories')
+  revalidateTag('featured')
+  revalidateTag('latest')
+  revalidateTag('stats')
+}
+
+export async function revalidateCustomerCache(customerId: number) {
+  revalidateTag(`customer-${customerId}`)
+  revalidateTag('orders')
+}
+
+export async function revalidateCategoryCache(categoryId: number) {
+  revalidateTag(`category-${categoryId}`)
+  revalidateTag('categories')
+  revalidateTag('products')
+}
+
+export async function revalidateProductsCache() {
+  revalidateTag('products')
+  revalidateTag('featured')
+  revalidateTag('latest')
+}
