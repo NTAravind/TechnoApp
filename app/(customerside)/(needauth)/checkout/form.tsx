@@ -509,7 +509,7 @@ const PriceBreakdown = memo(function PriceBreakdown({ user, deliveryMode }: { us
           <div className="flex items-center gap-2">
             <ShoppingBag className="h-5 w-5 text-orange-600" />
             <span className="text-sm font-medium text-orange-800">Bulk Order Detected</span>
-            <Link href={process.env.NEXT_PUBLIC_WHATSAPP_LINK || 'https://wa.link/132fuh'} className="text-orange-600 hover:text-orange-700">
+            <Link href={process.env.NEXT_PUBLIC_WHATSAPP_LINK || 'https://wa.link/rb6f0r'} className="text-orange-600 hover:text-orange-700">
               Contact us
             </Link>
           </div>
@@ -765,7 +765,7 @@ function PurchaseButton({
   }, [generateOrderText, showAlert]);
 
   const openWhatsApp = useCallback(() => {
-    const whatsappUrl = `${process.env.NEXT_PUBLIC_WHATSAPP_LINK || 'https://wa.link/132fuh'}?text=${encodeURIComponent(generateOrderText())}`;
+    const whatsappUrl = `${process.env.NEXT_PUBLIC_WHATSAPP_LINK || 'https://wa.link/rb6f0r'}?text=${encodeURIComponent(generateOrderText())}`;
     window.open(whatsappUrl, '_blank');
   }, [generateOrderText]);
 

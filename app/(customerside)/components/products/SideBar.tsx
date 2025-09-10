@@ -1,12 +1,15 @@
 'use client'
 
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { ShoppingCart } from "lucide-react"
+import { ShoppingCart, ArrowRight, Trash2, ShoppingBag } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { usePathname } from "next/navigation"
 import ProductCart from "@/lib/store"
 import CartCard from "./CartCard"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { fcurrency } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 
@@ -18,6 +21,7 @@ export default function CartSidebar() {
 
   // Memoize calculated values
   const totalPrice = useMemo(() => getTotalPrice(), [cartItems])
+  const itemCount = useMemo(() => getBasketCount(), [cartItems])
   const isEmpty = useMemo(() => cartItems.length === 0, [cartItems])
 
   // Close sidebar when navigating to checkout
@@ -35,7 +39,7 @@ export default function CartSidebar() {
 
   const handleClearCart = () => {
     if (isEmpty) return
-    if (confirm("Are you sure you want to clear your cart?")) {
+    if (confirm("Clear all items from your cart?")) {
       ClearBasket()
     }
   }
@@ -48,38 +52,58 @@ export default function CartSidebar() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <button className="relative p-2 rounded-full hover:bg-gray-100 transition-colors">
-          <ShoppingCart className="h-6 w-6 text-gray-700" />
+        <button className="relative p-3 rounded-full transition-all duration-200 active:scale-95 lg:hover:bg-gray-100 lg:text-gray-700 text-white touch-manipulation">
+          <ShoppingCart className="h-6 w-6" />
+          {itemCount > 0 && (
+          <Badge 
+  className="absolute -top-1 -right-1 h-3 w-3 rounded-full p-0 bg-white border-2 border-white shadow-sm"
+/>
+          )}
         </button>
       </SheetTrigger>
       
-      <SheetContent side="right" className="w-[320px] sm:w-[400px] flex flex-col p-0">
-        <SheetHeader className="flex-shrink-0 p-6 pb-3 border-b">
-          <SheetTitle className="text-lg font-semibold text-gray-900">
-            Your Cart
+      <SheetContent 
+        side="right" 
+        className="w-full sm:w-[420px] flex flex-col p-0 bg-gray-50 border-l border-gray-200"
+      >
+        {/* Header */}
+        <SheetHeader className="flex-shrink-0 px-6 py-5 bg-white border-b border-gray-200 shadow-sm">
+          <SheetTitle className="text-xl font-bold text-gray-900 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-[#16a34a]/10">
+                <ShoppingBag className="h-5 w-5 text-[#16a34a]" />
+              </div>
+              Your Cart
+            </div>
+          
           </SheetTitle>
         </SheetHeader>
 
         <div className="flex-1 flex flex-col min-h-0">
           {isEmpty ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-3">
-                <ShoppingCart className="h-8 w-8 text-gray-400" />
+            /* Empty State */
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-white mx-4 my-6 rounded-2xl shadow-sm border border-gray-100">
+              <div className="w-20 h-20 bg-gradient-to-br from-[#16a34a]/10 to-[#16a34a]/5 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
+                <ShoppingCart className="h-10 w-10 text-[#16a34a]/70" />
               </div>
-              <h3 className="text-base font-semibold text-gray-900 mb-1">Your cart is empty</h3>
-              <p className="text-sm text-gray-500 mb-4">Add some products to get started!</p>
+              <h3 className="text-lg font-bold text-gray-900 mb-3">Your cart is empty</h3>
+              <p className="text-sm text-gray-600 mb-8 max-w-xs leading-relaxed">
+                Discover amazing products and add them to your cart to get started!
+              </p>
               <Button
                 onClick={handleContinueShopping}
-                className="w-full h-10 text-sm font-medium"
-                size="sm"
+                className="w-full h-12 text-base font-semibold bg-[#16a34a] hover:bg-[#16a34a]/90 text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-200 active:scale-98"
+                size="lg"
               >
-                Continue Shopping
+                <ShoppingBag className="mr-2 h-5 w-5" />
+                Start Shopping
               </Button>
             </div>
           ) : (
             <>
-              <div className="flex-1 overflow-y-auto px-4 py-2">
-                <div className="space-y-2">
+              {/* Cart Items */}
+              <ScrollArea className="flex-1 px-4 py-2">
+                <div className="space-y-3 pb-4">
                   {cartItems.map((item, index) => (
                     <CartCard
                       prop={item}
@@ -88,42 +112,54 @@ export default function CartSidebar() {
                     />
                   ))}
                 </div>
-              </div>
+              </ScrollArea>
 
-              <div className="flex-shrink-0 border-t bg-gray-50 p-4 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-gray-900">Total</span>
-                  <span className="text-lg font-bold text-blue-700">
-                    {fcurrency(totalPrice)}
-                  </span>
+              {/* Footer */}
+              <div className="flex-shrink-0 bg-white border-t border-gray-200 shadow-lg">
+                {/* Summary */}
+                <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-white">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-600">Subtotal</span>
+                    <span className="text-lg font-bold text-gray-900">
+                      {fcurrency(totalPrice)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">{itemCount} items</span>
+                    <span className="text-xs text-[#16a34a] font-medium">Free delivery</span>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
+                <Separator className="bg-gray-200" />
+
+                {/* Action Buttons */}
+                <div className="p-4 space-y-3">
                   <Button
                     onClick={handleCheckout}
-                    className="w-full h-10 text-sm font-semibold bg-blue-600 hover:bg-blue-700"
-                    size="default"
+                    className="w-full h-12 text-base font-bold bg-[#16a34a] hover:bg-[#16a34a]/90 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 active:scale-98 group"
+                    size="lg"
                   >
-                    Checkout • {fcurrency(totalPrice)}
+                    <span className="mr-2">Proceed to Checkout</span>
+                    <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform duration-200" />
                   </Button>
                   
                   <div className="flex gap-2">
                     <Button
                       onClick={handleContinueShopping}
                       variant="outline"
-                      className="flex-1 h-9 text-sm font-medium text-gray-700 border-gray-300 hover:bg-gray-100"
+                      className="flex-1 h-10 text-sm font-medium text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400 rounded-lg transition-all duration-200 active:scale-98"
                       size="sm"
                     >
-                      Continue
+                      Continue Shopping
                     </Button>
                     
                     <Button
                       onClick={handleClearCart}
                       variant="outline"
-                      className="flex-1 h-9 text-sm font-medium text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                      className="px-4 h-10 text-sm font-medium text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700 rounded-lg transition-all duration-200 active:scale-98"
                       size="sm"
                     >
-                      Clear
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>

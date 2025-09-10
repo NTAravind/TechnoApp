@@ -3,9 +3,10 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import ProductCard from '@/app/(customerside)/components/products/productcard'
 import CategoryFilter from '../components/Category'
+import { ModernSearchSystem } from '../components/products/ModernBar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Grid3X3 } from 'lucide-react'
+import { Grid3X3, Search, ShoppingBag } from 'lucide-react'
 import ProductsClient from '../components/ProductClient'
 
 interface ProductsPageProps {
@@ -39,7 +40,7 @@ interface Category {
   }
 }
 
-// Fixed: Include all parameters in cache key to ensure proper cache invalidation
+// Cache functions remain the same...
 const fetchCategories = unstable_cache(
   async (): Promise<Category[]> => {
     const categories = await prisma.category.findMany({
@@ -67,7 +68,6 @@ const fetchCategories = unstable_cache(
   }
 )
 
-// Fixed: Include all parameters in cache key to prevent stale data
 const fetchProducts = unstable_cache(
   async (
     search?: string,
@@ -80,7 +80,6 @@ const fetchProducts = unstable_cache(
     }
 
     if (search) where.name = { contains: search, mode: 'insensitive' }
-    // Fixed: Handle categoryId properly - convert to number and validate
     if (categoryId && categoryId !== 'all') {
       const parsedCategoryId = parseInt(categoryId)
       if (!isNaN(parsedCategoryId)) {
@@ -115,7 +114,6 @@ const fetchProducts = unstable_cache(
 
     return { products, total }
   },
-  // Fixed: Include all parameters in cache key
   ['products'],
   {
     tags: ['products'],
@@ -123,13 +121,20 @@ const fetchProducts = unstable_cache(
   }
 )
 
+// Enhanced skeleton components
 function ProductCardSkeleton() {
   return (
-    <Card className="h-full">
+    <Card className="overflow-hidden border-0 bg-white rounded-2xl shadow-sm">
       <CardContent className="p-4">
-        <div className="aspect-square bg-muted rounded-md mb-4 animate-pulse" />
-        <div className="h-4 bg-muted rounded mb-2 animate-pulse" />
-        <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
+        <div className="aspect-square bg-gray-100 rounded-xl mb-4 animate-pulse" />
+        <div className="space-y-3">
+          <div className="h-4 bg-gray-100 rounded animate-pulse" />
+          <div className="h-3 bg-gray-100 rounded w-2/3 animate-pulse" />
+          <div className="flex items-center justify-between">
+            <div className="h-3 bg-gray-100 rounded w-1/3 animate-pulse" />
+            <div className="h-6 bg-gray-100 rounded w-16 animate-pulse" />
+          </div>
+        </div>
       </CardContent>
     </Card>
   )
@@ -137,36 +142,35 @@ function ProductCardSkeleton() {
 
 function CategoryFilterSkeleton() {
   return (
-    <div className="space-y-4">
-      {/* Mobile skeleton */}
-      <div className="lg:hidden">
-        <Skeleton className="h-10 w-full" />
+    <div className="hidden lg:block">
+      <Card className="border-0 bg-white rounded-2xl shadow-sm">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <Skeleton className="h-10 w-10 rounded-2xl" />
+            <Skeleton className="h-6 w-24" />
+          </div>
+          <div className="space-y-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between p-4 rounded-xl">
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-6 w-10 rounded-lg" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function SearchBarSkeleton() {
+  return (
+    <div className="flex items-center gap-3 w-full">
+      <div className="relative flex-1">
+        <div className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 bg-gray-300 rounded animate-pulse" />
+        <Skeleton className="w-full h-12 rounded-2xl" />
       </div>
-      {/* Desktop sidebar skeleton */}
-      <div className="hidden lg:block">
-        <Card>
-          <CardContent className="p-6">
-            <Skeleton className="h-6 w-24 mb-2" />
-            <Skeleton className="h-4 w-32 mb-4" />
-            <Skeleton className="h-8 w-full mb-4" />
-            <div className="space-y-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex items-center justify-between p-3">
-                  <div className="flex items-center space-x-3">
-                    <Skeleton className="h-4 w-4" />
-                    <Skeleton className="h-4 w-20" />
-                  </div>
-                  <Skeleton className="h-5 w-8" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      {/* Summary skeleton */}
-      <div className="flex items-center justify-between bg-muted/30 p-3 rounded-lg">
-        <Skeleton className="h-4 w-32" />
-      </div>
+      <Skeleton className="h-12 w-12 rounded-xl" />
     </div>
   )
 }
@@ -182,69 +186,123 @@ async function ProductGrid({
   page?: number
   limit?: number
 }) {
-  // Fixed: Normalize category parameter - don't pass undefined strings
   const categoryId = category && category !== 'all' && category !== 'undefined' ? category : undefined
   const { products, total } = await fetchProducts(search, categoryId, page, limit)
   const totalPages = Math.ceil(total / limit)
 
   if (products.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="bg-muted/30 rounded-full p-6 mb-4">
-          <Grid3X3 className="h-12 w-12 text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center py-16 px-4">
+        <div className="max-w-md text-center">
+          <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-2xl flex items-center justify-center">
+            <Grid3X3 className="w-10 h-10 text-gray-400" />
+          </div>
+          
+          <h3 className="text-xl font-semibold text-gray-900 mb-3">
+            No products found
+          </h3>
+          <p className="text-gray-600 mb-8 leading-relaxed">
+            {search || (category && category !== 'all')
+              ? "Try adjusting your search terms or browse different categories to find what you're looking for."
+              : "It looks like there are no products available right now. Check back soon!"
+            }
+          </p>
+          
+          {(search || (category && category !== 'all')) && (
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button className="px-6 py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-colors">
+                Clear Filters
+              </button>
+              <button className="px-6 py-3 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors">
+                Browse All
+              </button>
+            </div>
+          )}
         </div>
-        <h3 className="text-xl font-semibold mb-2">No products found</h3>
-        <p className="text-muted-foreground mb-4 max-w-md">
-          {search || (category && category !== 'all')
-            ? "Try adjusting your search terms or filters to find what you're looking for."
-            : "It looks like there are no products available right now."
-          }
-        </p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Results header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">
-            {total} Product{total !== 1 ? 's' : ''} Found
-          </h2>
-          <p className="text-sm text-muted-foreground">
+    <div className="space-y-8">
+      {/* Results header with improved spacing */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-semibold text-gray-900">
+              {total} Product{total !== 1 ? 's' : ''}
+            </h2>
+            {search && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
+                <Search className="w-3 h-3" />
+                <span>"{search}"</span>
+              </div>
+            )}
+          </div>
+          <p className="text-sm text-gray-600 flex items-center gap-2">
+            <ShoppingBag className="w-4 h-4" />
             Page {page} of {totalPages}
           </p>
         </div>
+        
+        {/* Status indicator */}
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="font-medium">Live inventory</span>
+        </div>
       </div>
 
-      {/* Products grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {/* Products grid with improved spacing */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
         {products.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}
       </div>
 
-      {/* Client-side pagination */}
-      <ProductsClient
-        currentPage={page}
-        totalPages={totalPages}
-        totalItems={total}
-        itemsPerPage={limit}
-        search={search}
-        category={category}
-      />
+      {/* Pagination with proper spacing */}
+      <div className="pt-8 border-t border-gray-100">
+        <ProductsClient
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={total}
+          itemsPerPage={limit}
+          search={search}
+          category={category}
+        />
+      </div>
     </div>
   )
 }
 
-async function CategoryFilterWrapper({ currentCategory }: { currentCategory?: string }) {
+async function CategoryFilterWrapper({ 
+  currentCategory
+}: { 
+  currentCategory?: string
+}) {
   const categories = await fetchCategories()
-  return <CategoryFilter categories={categories} currentCategory={currentCategory} />
+  return (
+    <CategoryFilter 
+      categories={categories} 
+      currentCategory={currentCategory}
+    />
+  )
+}
+
+async function SearchBarWrapper({ 
+  currentCategory 
+}: { 
+  currentCategory?: string 
+}) {
+  const categories = await fetchCategories()
+  return (
+    <ModernSearchSystem
+      categories={categories}
+      currentCategory={currentCategory}
+    />
+  )
 }
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  // Fixed: Properly await and handle searchParams
   const resolvedSearchParams = await searchParams
   const search = resolvedSearchParams?.search?.trim() || undefined
   const category = resolvedSearchParams?.category?.trim() || undefined
@@ -252,43 +310,83 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const limit = Math.max(1, Math.min(100, parseInt(resolvedSearchParams?.limit || '12') || 12))
 
   return (
-    <div className="container px-4 py-8">
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Sidebar - Category Filter */}
-        <aside className="lg:w-80 lg:flex-shrink-0">
-          <Suspense fallback={<CategoryFilterSkeleton />}>
-            <CategoryFilterWrapper currentCategory={category} />
-          </Suspense>
-        </aside>
+    <div className="min-h-screen bg-gray-50">
+      {/* Modern Header Section */}
+      <div className="bg-[#16a34a]  border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Search Bar */}
+          <div className="max-w-2xl mx-auto">
+            <Suspense fallback={<SearchBarSkeleton />}>
+              <SearchBarWrapper currentCategory={category} />
+            </Suspense>
+          </div>
+        </div>
+      </div>
 
-        {/* Main content - Products */}
-        <main className="flex-1 min-w-0">
-          <Suspense
-            key={`${search}-${category}-${page}-${limit}`} // Fixed: Add key to force re-render
-            fallback={
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
+      {/* Main container with improved spacing */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-8">
+        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
+          
+          {/* Sidebar - Category Filter with consistent width */}
+          <aside className="lg:w-80 lg:flex-shrink-0">
+            <div className="lg:sticky lg:top-6">
+              <Suspense fallback={<CategoryFilterSkeleton />}>
+                <CategoryFilterWrapper currentCategory={category} />
+              </Suspense>
+            </div>
+          </aside>
+
+          {/* Main content - Products with proper spacing */}
+          <main className="flex-1 min-w-0">
+            {/* Search indicator with better positioning */}
+            {search && (
+              <div className="mb-8 p-5 bg-blue-50 border border-blue-100 rounded-2xl">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                    <Search className="w-6 h-6 text-blue-600" />
+                  </div>
                   <div>
-                    <Skeleton className="h-6 w-32 mb-2" />
-                    <Skeleton className="h-4 w-24" />
+                    <p className="font-semibold text-blue-900 text-lg">Search Results</p>
+                    <p className="text-blue-700">Showing results for "{search}"</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <ProductCardSkeleton key={i} />
-                  ))}
-                </div>
               </div>
-            }
-          >
-            <ProductGrid search={search} category={category} page={page} limit={limit} />
-          </Suspense>
-        </main>
+            )}
+
+            {/* Loading state with proper spacing */}
+            <Suspense
+              key={`${search}-${category}-${page}-${limit}`}
+              fallback={
+                <div className="space-y-8">
+                  {/* Header skeleton */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="space-y-2">
+                      <Skeleton className="h-8 w-40" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  
+                  {/* Grid skeleton */}
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <ProductCardSkeleton key={i} />
+                    ))}
+                  </div>
+                </div>
+              }
+            >
+              <ProductGrid search={search} category={category} page={page} limit={limit} />
+            </Suspense>
+          </main>
+        </div>
       </div>
+
+      {/* Bottom spacing for mobile */}
+      <div className="h-6 lg:h-8" />
     </div>
   )
 }
 
-// Fixed: Change to dynamic rendering to prevent stale cache issues with filters
 export const revalidate = false
-export const dynamic = 'force-dynamic' // Changed from 'force-static'
+export const dynamic = 'force-dynamic'

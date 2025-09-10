@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SessionProvider } from "next-auth/react";
 
 import { NavBar } from '../(customerside)/components/products/Nav'
 import Footer from "./components/Footer";
+import NotificationSubscriptionPrompt from "./components/PushNotification";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,12 +25,19 @@ export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>) {
+}>)
+
+{
   return (
     <div className="bg-green-50">
-      <div><NavBar /></div>
+      <SessionProvider>
+      <NavBar />
+   
       {children}
+ 
       <Footer />
+      </SessionProvider>
+     
     </div>
   );
 }

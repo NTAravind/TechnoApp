@@ -1,7 +1,8 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-
+import { revalidatePath } from 'next/cache'
+import { sendNotificationToCustomerByPhone } from './push-notification'
 // Updated types to match the Prisma schema and component expectations
 export interface OrderProduct {
   id: number
@@ -263,5 +264,206 @@ export async function updateOrderStatus(
   } catch (error) {
     console.error('Error updating order:', error)
     return { success: false, data: null, error: 'Failed to update order' }
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+///////NOTIFICaTIONS RELATED CODE BELOW
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+export async function markOrderComplete(orderId: string, customerPhone: string) {
+  try {
+    // Update order to complete
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: { 
+        complete: true,
+        delivered: true // Mark as delivered when complete
+      },
+      include: {
+        customer: true,
+        items: {
+          include: {
+            product: true
+          }
+        }
+      }
+    })
+
+    // Send completion notification
+    const notificationPayload = {
+      title: 'Order Completed! 🎉',
+      body: `Your order #${orderId.slice(-6)} worth ₹${order.total.toFixed(2)} has been completed successfully. Thank you for shopping with us!`,
+      icon: '/icons/order-completed.png',
+      badge: '/icons/notification-badge.png',
+      data: { 
+        orderId, 
+        type: 'order_completed',
+        total: order.total,
+        customerPhone 
+      },
+      actions: [
+        {
+          action: 'view_order',
+          title: 'View Order Details'
+        },
+        {
+          action: 'shop_again',
+          title: 'Shop Again'
+        }
+      ]
+    }
+
+    // Send notification using customer phone
+    const notificationResult = await sendNotificationToCustomerByPhone(
+      customerPhone, 
+      notificationPayload
+    )
+
+    // Revalidate pages to show updated status
+    revalidatePath('/admin/orders')
+    revalidatePath(`/admin/orders/${orderId}`)
+
+    return { 
+      success: true, 
+      order,
+      notificationSent: notificationResult.success,
+      notificationsSent: notificationResult.sent || 0
+    }
+  } catch (error) {
+    console.error('Error marking order complete:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to complete order' 
+    }
+  }
+}
+
+// Alternative function for updating order status with notifications
+export async function updateOrderStatusWithNotification(
+  orderId: string,
+  status: 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'completed'
+) {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        customer: true
+      }
+    })
+
+    if (!order) {
+      return { success: false, error: 'Order not found' }
+    }
+
+    const updateData: any = {}
+    let notificationPayload: any
+
+    switch (status) {
+      case 'confirmed':
+        notificationPayload = {
+          title: 'Order Confirmed ✅',
+          body: `Your order #${orderId.slice(-6)} has been confirmed and will be prepared soon.`,
+          icon: '/icons/order-confirmed.png',
+          data: { orderId, type: 'order_confirmed' }
+        }
+        break
+
+      case 'preparing':
+        notificationPayload = {
+          title: 'Order Being Prepared 👨‍🍳',
+          body: `Your order #${orderId.slice(-6)} is now being prepared with care.`,
+          icon: '/icons/order-preparing.png',
+          data: { orderId, type: 'order_preparing' }
+        }
+        break
+
+      case 'ready':
+        notificationPayload = {
+          title: 'Order Ready! 📦',
+          body: `Your order #${orderId.slice(-6)} is ready for pickup/delivery.`,
+          icon: '/icons/order-ready.png',
+          data: { orderId, type: 'order_ready' },
+          actions: [
+            {
+              action: 'track_delivery',
+              title: 'Track Delivery'
+            }
+          ]
+        }
+        break
+
+      case 'delivered':
+        updateData.delivered = true
+        notificationPayload = {
+          title: 'Order Delivered! 🚚',
+          body: `Your order #${orderId.slice(-6)} has been successfully delivered.`,
+          icon: '/icons/order-delivered.png',
+          data: { orderId, type: 'order_delivered' },
+          actions: [
+            {
+              action: 'rate_order',
+              title: 'Rate Your Experience'
+            }
+          ]
+        }
+        break
+
+      case 'completed':
+        updateData.complete = true
+        updateData.delivered = true
+        notificationPayload = {
+          title: 'Order Completed! 🎉',
+          body: `Your order #${orderId.slice(-6)} is now complete. Thank you for choosing us!`,
+          icon: '/icons/order-completed.png',
+          data: { orderId, type: 'order_completed' },
+          actions: [
+            {
+              action: 'shop_again',
+              title: 'Shop Again'
+            },
+            {
+              action: 'leave_review',
+              title: 'Leave Review'
+            }
+          ]
+        }
+        break
+
+      default:
+        return { success: false, error: 'Invalid status' }
+    }
+
+    // Update order
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: updateData,
+      include: {
+        customer: true
+      }
+    })
+
+    // Send notification
+    const notificationResult = await sendNotificationToCustomerByPhone(
+      order.customer.phone,
+      notificationPayload
+    )
+
+    // Revalidate pages
+    revalidatePath('/admin/orders')
+    revalidatePath(`/admin/orders/${orderId}`)
+
+    return {
+      success: true,
+      order: updatedOrder,
+      status,
+      notificationSent: notificationResult.success,
+      notificationsSent: notificationResult.sent || 0
+    }
+  } catch (error) {
+    console.error('Error updating order status:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update order'
+    }
   }
 }

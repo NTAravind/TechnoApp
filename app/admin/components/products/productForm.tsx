@@ -248,7 +248,7 @@ export function ProductForm({
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="size">Size</Label>
+                    <Label htmlFor="size">Quantity</Label>
                     <Input 
                       type="number" 
                       id="size" 

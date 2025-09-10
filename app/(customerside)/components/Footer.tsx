@@ -1,21 +1,22 @@
 import React from 'react';
 import Link from 'next/link';
-import { Facebook, Instagram, Mail, MapPin, Phone, Twitter, MessageCircle } from 'lucide-react';
-import logo from '@/public/logo.svg'
+import { Facebook, Instagram, Mail, MapPin, MessageCircle, Twitter } from 'lucide-react';
 import Image from 'next/image';
+import logo from '@/public/logo.svg';
+
 export default function Footer() {
   return (
-    <footer className="bg-gradient-to-br from-green-900 to-green-800 text-white relative overflow-hidden">
+    <footer className="hidden sm:block bg-gradient-to-br from-green-900 to-green-800 text-white relative overflow-hidden">
       <div className="absolute inset-0">
         <div className="absolute top-0 left-0 w-96 h-96 bg-green-700 rounded-full mix-blend-multiply opacity-20 blur-3xl"></div>
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-green-800 rounded-full mix-blend-multiply opacity-20 blur-3xl"></div>
       </div>
-      
+
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="col-span-1 md:col-span-1">
             <div className="flex items-center mb-4">
-            <Image src={logo} alt='Techno' width={70} height={70}/>
+              <Image src={logo} alt="Techno" width={70} height={70} />
               <div className="text-xl font-medium bg-gradient-to-r from-white to-green-200 bg-clip-text text-transparent">
                 Techno<span className="font-light">Industries</span>
               </div>
@@ -37,7 +38,7 @@ export default function Footer() {
                 <Twitter size={20} className="hover:drop-shadow-glow" />
               </Link>
             </div>
-            
+
             <div className="mt-6 space-y-3">
               <div className="flex items-start space-x-3 text-sm text-green-200">
                 <MapPin size={16} className="mt-1 flex-shrink-0" />
@@ -52,7 +53,7 @@ export default function Footer() {
               </div>
             </div>
           </div>
-          
+
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white">Quick Links</h3>
             <ul className="mt-4 space-y-2">
@@ -76,7 +77,7 @@ export default function Footer() {
               </li>
             </ul>
           </div>
-          
+
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white">Support</h3>
             <ul className="mt-4 space-y-2">
@@ -106,7 +107,7 @@ export default function Footer() {
               </li>
             </ul>
           </div>
-          
+
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white">Business</h3>
             <ul className="mt-4 space-y-2">
@@ -137,7 +138,7 @@ export default function Footer() {
             </ul>
           </div>
         </div>
-        
+
         <div className="mt-12 pt-8 border-t border-green-800/50 flex flex-col md:flex-row justify-between items-center">
           <p className="text-sm text-green-300">© 2025 Techno Industries. All rights reserved.</p>
           <div className="mt-4 md:mt-0 flex space-x-6">

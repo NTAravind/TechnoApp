@@ -3,17 +3,15 @@ import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Heart, Share2, ArrowLeft, Package, Tag, Weight, Box } from 'lucide-react'
+import { ArrowLeft, Package, Star, Share, Heart } from 'lucide-react'
 import Link from 'next/link'
 import BuySection from '../../components/BuySection'
 import ProductCard from '../../components/products/productcard'
 import { Suspense } from 'react'
 
-// Cache configuration - cache indefinitely until manually revalidated
 export const revalidate = false
 export const dynamic = 'force-static'
 
-// Unified Product interface matching Prisma schema
 interface Product {
   id: number
   name: string
@@ -32,14 +30,12 @@ interface Product {
   updatedAt: string
 }
 
-// Updated interface to match Next.js App Router expectations
 interface ProductDetailPageProps {
   params: Promise<{
     id: string
   }>
 }
 
-// Generate static params for all products at build time
 export async function generateStaticParams() {
   const products = await prisma.product.findMany({
     select: { id: true }
@@ -50,7 +46,6 @@ export async function generateStaticParams() {
   }))
 }
 
-// Generate metadata for SEO
 export async function generateMetadata({ params }: ProductDetailPageProps) {
   const resolvedParams = await params
   const id = parseInt(resolvedParams.id)
@@ -104,70 +99,80 @@ async function getRelatedProducts(categoryId: number, currentProductId: number) 
         select: { name: true },
       },
     },
-    take: 10,
+    take: 8,
     orderBy: {
       createdAt: 'desc'
     }
   })
 }
 
-// Dynamic price section component
-function PriceSection({ product }: { product: Product }) {
+function MobileHeader({ product }: { product: Product }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-3">
-        <div className="text-3xl text-green-600 font-bold">₹{product.price.toLocaleString()}</div>
-        <span className="text-lg text-muted-foreground">per {product.unit}</span>
+    <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 md:hidden">
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Link href="/products" className="p-2 -ml-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="font-semibold truncate text-gray-900">{product.name}</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+            <Share className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+            <Heart className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   )
 }
 
-// Product info component
-function ProductInfo({ product }: { product: Product }) {
+function ProductImage({ product }: { product: Product }) {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium min-w-[80px]">Category:</span>
-        <span className="text-muted-foreground">{product.category.name}</span>
-      </div>
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium min-w-[80px]">Unit:</span>
-        <span className="text-muted-foreground">{product.unit}</span>
-      </div>
-      {product.weight && (
-        <div className="flex items-center gap-2 text-sm">
-          <span className="font-medium min-w-[80px]">Weight:</span>
-          <span className="text-muted-foreground">{product.weight}</span>
-        </div>
-      )}
-      {product.size && product.size.length > 0 && (
-        <div className="flex items-center gap-2 text-sm">
-          <span className="font-medium min-w-[80px]">Quantity:</span>
-          <div className="flex flex-wrap gap-1">
-            {product.size.map((size, index) => (
-              <span key={size} className="text-muted-foreground">
-                {size}{product.unit}{index < product.size.length - 1 && ', '}
-              </span>
-            ))}
+    <div className="relative">
+      {/* Mobile Image */}
+      <div className="md:hidden">
+        <div className="aspect-square bg-gray-50 mx-4 mb-6 rounded-3xl overflow-hidden relative">
+          {product.imgurl ? (
+            <Image
+              src={product.imgurl}
+              alt={product.name}
+              fill
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+              <Package className="h-20 w-20 text-gray-400" />
+            </div>
+          )}
+          
+          {/* Status Badge */}
+          <div className="absolute top-4 left-4">
+            <Badge className="bg-green-600 text-white text-xs font-medium px-3 py-1 rounded-full">
+              In Stock
+            </Badge>
           </div>
         </div>
-      )}
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium min-w-[80px]">SKU:</span>
-        <span className="text-muted-foreground font-mono">{product.sku}</span>
       </div>
-      {/* LooseSell indicator */}
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium min-w-[80px]">Selling Type:</span>
-        <div className="flex items-center gap-2">
-          <Badge variant={product.LooseSell ? "default" : "secondary"} className="text-xs">
-            {product.LooseSell ? "Flexible Quantity" : "Package Only"}
-          </Badge>
-          {!product.LooseSell && product.packaging && (
-            <span className="text-xs text-muted-foreground">
-              (Min: {product.packaging} {product.unit})
-            </span>
+
+      {/* Desktop Image */}
+      <div className="hidden md:block max-w-[400px] mx-auto">
+        <div className="aspect-square bg-gray-50 rounded-2xl overflow-hidden relative">
+          {product.imgurl ? (
+            <Image
+              src={product.imgurl}
+              alt={product.name}
+              fill
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+              <Package className="h-24 w-24 text-gray-400" />
+            </div>
           )}
         </div>
       </div>
@@ -175,7 +180,148 @@ function ProductInfo({ product }: { product: Product }) {
   )
 }
 
-// Related products component with loading state
+function ProductInfo({ product }: { product: Product }) {
+  return (
+    <div className="md:hidden px-4 space-y-6">
+      {/* Category and Title */}
+      <div className="space-y-3">
+        <Badge variant="outline" className="text-xs font-medium px-3 py-1 rounded-full border-gray-200">
+          {product.category.name}
+        </Badge>
+        
+        <h1 className="text-2xl font-bold text-gray-900 leading-tight">
+          {product.name}
+        </h1>
+        
+        {/* Rating */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            {[...Array(5)].map((_, i) => (
+              <Star 
+                key={i}
+                className={`h-4 w-4 ${i < 4 ? 'fill-yellow-400 text-yellow-400' : 'fill-gray-200 text-gray-200'}`}
+              />
+            ))}
+          </div>
+          <span className="text-sm text-gray-600">4.5</span>
+          <span className="text-sm text-gray-400">•</span>
+          <span className="text-sm text-gray-600">124 reviews</span>
+        </div>
+      </div>
+
+      {/* Price */}
+      <div className="bg-green-50 rounded-2xl p-4 border border-green-100">
+        <div className="flex items-baseline gap-2">
+          <span className="text-3xl font-bold text-green-600">
+            ₹{product.price.toLocaleString()}
+          </span>
+          <span className="text-base text-gray-600">per {product.unit}</span>
+        </div>
+      </div>
+
+      {/* Description */}
+      {product.descr && (
+        <div className="space-y-3">
+          <h3 className="font-semibold text-gray-900">About this product</h3>
+          <p className="text-gray-700 leading-relaxed">{product.descr}</p>
+        </div>
+      )}
+
+      {/* Specifications */}
+      <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+        <h3 className="font-semibold text-gray-900 text-sm">Specifications</h3>
+        <div className="space-y-2">
+          <div className="flex justify-between items-center py-1">
+            <span className="text-sm text-gray-600">Unit</span>
+            <span className="text-sm font-medium text-gray-900">{product.unit}</span>
+          </div>
+          <div className="flex justify-between items-center py-1">
+            <span className="text-sm text-gray-600">SKU</span>
+            <span className="text-xs font-medium text-gray-900 font-mono">{product.sku}</span>
+          </div>
+          {product.weight && (
+            <div className="flex justify-between items-center py-1">
+              <span className="text-sm text-gray-600">Weight</span>
+              <span className="text-sm font-medium text-gray-900">{product.weight}</span>
+            </div>
+          )}
+          {product.packaging && (
+            <div className="flex justify-between items-center py-1">
+              <span className="text-sm text-gray-600">Package Size</span>
+              <span className="text-sm font-medium text-gray-900">{product.packaging} {product.unit}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DesktopInfo({ product }: { product: Product }) {
+  return (
+    <div className="hidden md:block space-y-6">
+      <Badge variant="outline" className="font-medium">{product.category.name}</Badge>
+      
+      <div className="space-y-3">
+        <h1 className="text-3xl font-bold text-gray-900">{product.name}</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            {[...Array(5)].map((_, i) => (
+              <Star 
+                key={i}
+                className={`h-4 w-4 ${i < 4 ? 'fill-yellow-400 text-yellow-400' : 'fill-gray-200 text-gray-200'}`}
+              />
+            ))}
+          </div>
+          <span className="text-sm text-gray-600">(124 reviews)</span>
+        </div>
+      </div>
+
+      <div className="flex items-baseline gap-3">
+        <span className="text-4xl font-bold text-green-600">
+          ₹{product.price.toLocaleString()}
+        </span>
+        <span className="text-lg text-gray-600">per {product.unit}</span>
+      </div>
+
+      <Badge className="bg-green-600 text-white">In Stock</Badge>
+
+      {product.descr && (
+        <div className="space-y-3">
+          <h3 className="font-semibold text-gray-900">Description</h3>
+          <p className="text-gray-700 leading-relaxed">{product.descr}</p>
+        </div>
+      )}
+
+      <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+        <h3 className="font-semibold text-gray-900">Product Details</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <div className="text-sm text-gray-600">Unit</div>
+            <div className="font-medium">{product.unit}</div>
+          </div>
+          <div className="space-y-2">
+            <div className="text-sm text-gray-600">SKU</div>
+            <div className="font-medium text-xs font-mono">{product.sku}</div>
+          </div>
+          {product.weight && (
+            <div className="space-y-2">
+              <div className="text-sm text-gray-600">Weight</div>
+              <div className="font-medium">{product.weight}</div>
+            </div>
+          )}
+          {product.packaging && (
+            <div className="space-y-2">
+              <div className="text-sm text-gray-600">Package Size</div>
+              <div className="font-medium">{product.packaging} {product.unit}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function RelatedProducts({ products }: { products: any[] }) {
   const formattedProducts = products.map((product) => ({
     ...product,
@@ -185,7 +331,7 @@ function RelatedProducts({ products }: { products: any[] }) {
   }))
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       {formattedProducts.map((product) => (
         <ProductCard key={product.id} product={product} />
       ))}
@@ -207,10 +353,8 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
     notFound()
   }
 
-  // Fetch related products
   const relatedProducts = await getRelatedProducts(product.categoryId, product.id)
 
-  // Convert Prisma product to match Product interface
   const formattedProduct: Product = {
     ...product,
     imgurl: product.imgurl ?? null,
@@ -223,102 +367,73 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-10">
-      {/* Breadcrumb navigation */}
-      <div className="mb-6">
-        <Link href="/products" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+    <div className="min-h-screen bg-white">
+      <MobileHeader product={formattedProduct} />
+
+      {/* Desktop Back Button */}
+      <div className="hidden md:block max-w-6xl mx-auto px-6 pt-6 pb-4">
+        <Link href="/products" className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium rounded-lg px-3 py-2 -ml-3 hover:bg-gray-100 transition-colors">
           <ArrowLeft className="h-4 w-4" />
           Back to Products
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-10">
-        {/* Product Image Section */}
-        <div className="flex justify-center items-start">
-          <div className="w-full max-w-[500px]">
-            <div className="relative aspect-square bg-muted/10 rounded-lg overflow-hidden border">
-              {formattedProduct.imgurl ? (
-                <Image
-                  src={formattedProduct.imgurl}
-                  alt={formattedProduct.name}
-                  fill
-                  className="object-cover"
-                  priority
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <div className="text-center space-y-3">
-                    <Package className="h-16 w-16 text-muted-foreground mx-auto" />
-                    <p className="text-base text-muted-foreground font-medium">No image available</p>
+      <div className="md:max-w-6xl md:mx-auto md:px-6 md:pb-12">
+        <div className="md:grid md:grid-cols-2 md:gap-12">
+          <ProductImage product={formattedProduct} />
+          <div className="space-y-6">
+            <ProductInfo product={formattedProduct} />
+            <DesktopInfo product={formattedProduct} />
+            
+            {/* Desktop Buy Section */}
+            <div className="hidden md:block">
+              <BuySection prop={formattedProduct} />
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Buy Section */}
+        <div className="md:hidden px-4 py-6">
+          <BuySection prop={formattedProduct} />
+        </div>
+
+        {/* Related Products */}
+        {relatedProducts.length > 0 && (
+          <div className="border-t border-gray-100 pt-8 mt-12 px-4 md:px-0">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">
+              More from {formattedProduct.category.name}
+            </h2>
+            <Suspense fallback={
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="animate-pulse space-y-3">
+                    <div className="bg-gray-200 aspect-square rounded-2xl"></div>
+                    <div className="bg-gray-200 h-4 rounded-lg"></div>
+                    <div className="bg-gray-200 h-3 rounded-lg w-3/4"></div>
                   </div>
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            }>
+              <RelatedProducts products={relatedProducts} />
+            </Suspense>
           </div>
-        </div>
-
-        {/* Product Details Section */}
-        <div className="space-y-6">
-          {/* Category Badge */}
-          <Badge variant="secondary" className="w-fit">
-            {formattedProduct.category.name}
-          </Badge>
-
-          {/* Product Title */}
-          <h1 className="text-3xl font-bold leading-tight">
-            {formattedProduct.name}
-          </h1>
-
-          {/* Price Section */}
-          <PriceSection product={formattedProduct} />
-
-          {/* Product Information */}
-          <ProductInfo product={formattedProduct} />
-
-          {/* Stock Badge - Always in stock for this example */}
-          <div className="flex items-center gap-3">
-            <Badge variant="default" className="px-3 py-1 bg-green-600">✓ In Stock</Badge>
-          </div>
-
-          {/* Description */}
-          {formattedProduct.descr && (
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-2">Description</h3>
-              <p className="text-base leading-relaxed text-muted-foreground">
-                {formattedProduct.descr}
-              </p>
-            </div>
-          )}
-
-          {/* Buy Section */}
-          <div className="pt-4 border-t">
-            <BuySection prop={formattedProduct} />
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Related Products Section */}
-      {relatedProducts.length > 0 && (
-        <div className="border-t pt-10">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold mb-2">More from {formattedProduct.category.name}</h2>
-            <p className="text-muted-foreground">Discover similar products you might like</p>
-          </div>
-          <Suspense fallback={
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="bg-gray-200 aspect-square rounded-lg mb-2"></div>
-                  <div className="bg-gray-200 h-4 rounded mb-1"></div>
-                  <div className="bg-gray-200 h-3 rounded w-3/4"></div>
-                </div>
-              ))}
+      {/* Mobile Bottom Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 z-40 safe-area-pb">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <div className="text-sm text-gray-600 font-medium">Starting at</div>
+            <div className="text-xl font-bold text-green-600">
+              ₹{formattedProduct.price.toLocaleString()}
             </div>
-          }>
-            <RelatedProducts products={relatedProducts} />
-          </Suspense>
+          </div>
+          <Button className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 h-12 rounded-2xl font-semibold shadow-lg active:scale-95 transition-all duration-150">
+            Add to Cart
+          </Button>
         </div>
-      )}
+      </div>
     </div>
   )
 }

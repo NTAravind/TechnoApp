@@ -6,7 +6,8 @@ import {
   ShoppingCart, 
   Users, 
   FolderOpen,
-  Home
+  Home,
+  Bell
 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -27,6 +28,7 @@ const NavigationDock = () => {
     { id: 'products', label: 'Products', icon: Package, href: '/admin/products' },
     { id: 'categories', label: 'Categories', icon: FolderOpen, href: '/admin/categories' },
     { id: 'customers', label: 'Customers', icon: Users, href: '/admin/customers' },
+        { id: 'notification', label: 'notifications', icon: Bell, href: '/admin/notification' },
   ];
 
   const handleNavigation = (href: string) => {

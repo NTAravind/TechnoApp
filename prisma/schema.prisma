@@ -49,6 +49,7 @@ model Customer {
   Address       String?
   pincode       String?
   orders        Order[]
+    pushSubscriptions PushSubscription[]
 }
 
 model Order {
@@ -77,4 +78,15 @@ model OrderItem {
   product   Product @relation(fields: [productId], references: [id])
 
   @@index([orderId, productId])
+}
+
+
+  model PushSubscription {
+  id         Int       @id @default(autoincrement())
+  endpoint   String    @unique
+  keys       Json
+  customerId String?      // optional: link to your Customer
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  customer   Customer? @relation(fields: [customerId], references: [phone])
 }

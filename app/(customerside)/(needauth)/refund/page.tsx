@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 
 export default function RefundPage() {
   const handleWhatsAppClick = () => {
-    window.open('https://wa.link/132fuh', '_blank');
+    window.open('https://wa.link/rb6f0r', '_blank');
   };
 
   return (

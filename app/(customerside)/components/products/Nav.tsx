@@ -2,11 +2,10 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Menu, ShoppingBag, Package, TrendingUp, ChevronDown, Grid3X3, Search, Home } from 'lucide-react'
+import { ShoppingBag, Package, TrendingUp, ChevronDown, Grid3X3, Home } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import logo from '@/public/logo.svg'
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +15,6 @@ import {
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import ProductCart from '@/lib/store'
 import CartSidebar from './SideBar'
 import { ModernSearchSystem } from './ModernBar'
@@ -36,8 +34,6 @@ const shopCategories = [
 
 export function NavBar() {
   const pathname = usePathname()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [showMobileSearch, setShowMobileSearch] = useState(false)
   const [isClient, setIsClient] = useState(false)
 
   // Prevent hydration mismatch by only showing cart after mount
@@ -45,196 +41,60 @@ export function NavBar() {
     setIsClient(true)
   }, [])
 
-  // Optimized search handler with useCallback
-  const handleSearch = useCallback((query: string) => {
-    console.log('Search query:', query)
-    setShowMobileSearch(false)
-  }, [])
-
   // Memoized active path checker
   const isActive = useCallback((path: string) => pathname === path, [pathname])
 
-  // Optimized mobile menu closer
-  const closeMobileMenu = useCallback(() => {
-    setMobileMenuOpen(false)
-  }, [])
-
-  // Memoized toggle handlers
-  const toggleMobileSearch = useCallback(() => {
-    setShowMobileSearch(prev => !prev)
-  }, [])
-
-  // Memoized navigation items for better performance
+  // Updated navigation items without investors
   const navigationItems = useMemo(() => [
     { href: '/orders', icon: Package, label: 'Orders', isActive: isActive('/orders') },
-    { href: '/investor', icon: TrendingUp, label: 'Investors', isActive: isActive('/investor') },
+  ], [isActive])
+
+  // Mobile bottom dock navigation items
+  const mobileNavItems = useMemo(() => [
+    { href: '/', icon: Home, label: 'Home', isActive: isActive('/') },
+    { href: '/products', icon: ShoppingBag, label: 'Products', isActive: isActive('/products') },
+    { href: '/orders', icon: Package, label: 'Orders', isActive: isActive('/orders') },
   ], [isActive])
 
   return (
     <>
-      {/* Mobile Dock-style Navigation Bar */}
-      <nav className="bg-white border-b border-gray-200/50 sticky top-0 z-50 shadow-lg lg:hidden">
-        <div className="">
-          <div className="bg-white/95 backdrop-blur-md border border-gray-200/80 rounded-2xl shadow-xl px-4">
-            <div className="flex items-center justify-between h-16 w-full">
-              {/* Logo Section - Responsive */}
-              <Link href="/" className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0 min-w-0">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-sm">
-                  <Image src={logo} alt='Techno' width={70} height={70} priority />
-                </div>
-                <div className="min-w-0">
-                  <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate">
-                    Techno Industries
-                  </h1>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide hidden sm:block">
-                    Industrial Solutions
-                  </p>
-                </div>
+      {/* Mobile Bottom Dock Navigation */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50">
+        <div className="bg-[#16a34a] px-4 py-1 shadow-2xl">
+          <div className="flex items-center justify-around max-w-md mx-auto">
+            {/* Navigation Items */}
+            {mobileNavItems.map(({ href, icon: Icon, label, isActive }) => (
+              <Link
+                key={href}
+                href={href}
+                className={`flex flex-col items-center space-y-1 px-3 py-2 rounded-md transition-all duration-200 ${
+                  isActive
+                    ? 'text-white bg-white/20'
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="text-xs font-medium">{label}</span>
               </Link>
+            ))}
 
-              {/* Right Section - Mobile */}
-              <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
-                {/* Mobile Search Toggle */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-10 w-10 p-0 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-xl"
-                  onClick={toggleMobileSearch}
-                >
-                  <Search className="h-5 w-5" />
-                </Button>
-
-                {/* Cart - Only render after client-side mount to prevent SSR errors */}
-                <div className="relative">
-                  {isClient ? (
-                    <CartSidebar />
-                  ) : (
-                    // Placeholder that matches the CartSidebar dimensions to prevent layout shift
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-10 w-10 p-0 text-gray-700 hover:text-gray-900 hover:bg-gray-50 relative rounded-xl"
-                      disabled
-                    >
-                      <ShoppingBag className="h-5 w-5" />
-                    </Button>
-                  )}
+            {/* Cart Button */}
+            <div className="flex flex-col items-center space-y-1 px-3 py-2">
+              {isClient ? (
+                <div className="flex flex-col items-center space-y-1">
+                  <CartSidebar />
+                  <span className="text-xs font-medium text-white/80">Cart</span>
                 </div>
-
-                {/* Mobile Menu Trigger */}
-                <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-                  <SheetTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-10 w-10 p-0 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-xl"
-                    >
-                      <Menu className="h-5 w-5" />
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent
-                    side="right"
-                    className="w-full sm:w-80 bg-white border-l border-gray-200 p-0"
-                  >
-                    <SheetHeader className="p-6 pb-4 border-b border-gray-100">
-                      <div className="flex items-center justify-between">
-                        <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-sm">
-                            <Image src={logo} alt='Techno' width={24} height={24} />
-                          </div>
-                          <div>
-                            <h2 className="text-lg font-bold text-gray-900">Techno Industries</h2>
-                          </div>
-                        </div>
-                      </div>
-                    </SheetHeader>
-
-                    <ScrollArea className="flex-1 h-[calc(100vh-120px)]">
-                      <div className="p-6 space-y-6">
-                        {/* Quick Actions */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <Link
-                            href="/"
-                            className={`flex flex-col items-center p-4 rounded-xl border-2 transition-all duration-200 ${
-                              isActive('/')
-                                ? 'border-green-200 bg-green-50 text-green-700'
-                                : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50 text-gray-700'
-                            }`}
-                            onClick={closeMobileMenu}
-                          >
-                            <Home className="w-6 h-6 mb-2" />
-                            <span className="text-sm font-medium">Home</span>
-                          </Link>
-                          <Link
-                            href="/products"
-                            className="flex flex-col items-center p-4 rounded-xl border-2 border-gray-100 hover:border-gray-200 hover:bg-gray-50 text-gray-700 transition-all duration-200"
-                            onClick={closeMobileMenu}
-                          >
-                            <ShoppingBag className="w-6 h-6 mb-2" />
-                            <span className="text-sm font-medium">All Products</span>
-                          </Link>
-                        </div>
-
-                        <Separator />
-
-                        {/* Main Navigation Links */}
-                        <div className="space-y-1">
-                          <h3 className="text-sm font-semibold text-gray-900 mb-3 px-2">Main Menu</h3>
-                          {navigationItems.map(({ href, icon: Icon, label, isActive }) => (
-                            <Link
-                              key={href}
-                              href={href}
-                              className={`flex items-center space-x-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
-                                isActive
-                                  ? 'text-green-700 bg-green-50 border border-green-200'
-                                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
-                              }`}
-                              onClick={closeMobileMenu}
-                            >
-                              <Icon className="w-5 h-5" />
-                              <span>{label === 'Orders' ? 'My Orders' : label}</span>
-                            </Link>
-                          ))}
-                        </div>
-
-                        <Separator />
-
-                        {/* Product Categories */}
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-900 mb-3 px-2">Product Categories</h3>
-                          <div className="space-y-1">
-                            {shopCategories.map((category) => (
-                              <Link
-                                key={category.name}
-                                href={category.href}
-                                className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all duration-200"
-                                onClick={closeMobileMenu}
-                              >
-                                <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
-                                {category.name}
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </ScrollArea>
-                  </SheetContent>
-                </Sheet>
-              </div>
+              ) : (
+                <div className="flex flex-col items-center space-y-1 text-white/80">
+                  <ShoppingBag className="w-5 h-5" />
+                  <span className="text-xs font-medium">Cart</span>
+                </div>
+              )}
             </div>
           </div>
-
-          {/* Mobile Search Bar - Collapsible */}
-          {showMobileSearch && (
-            <div className="mt-2 animate-in slide-in-from-top-2 duration-200">
-              <div className="bg-white/95 backdrop-blur-md border border-gray-200/80 rounded-2xl shadow-xl px-4 py-3">
-                <ModernSearchSystem onSearch={handleSearch} isMobileIcon={false} />
-              </div>
-            </div>
-          )}
         </div>
-      </nav>
+      </div>
 
       {/* Desktop Navigation Bar - Floating */}
       <nav className="hidden lg:block bg-white/95 backdrop-blur-md border-b border-gray-200/50 sticky top-0 z-50 shadow-sm lg:fixed lg:top-4 lg:left-4 lg:right-4 lg:rounded-2xl lg:shadow-xl lg:border lg:border-gray-200/80">
@@ -277,7 +137,7 @@ export function NavBar() {
                   <DropdownMenuItem className="p-0 mb-2">
                     <Link
                       href="/products"
-                      className="w-full px-3 py-2.5 text-sm font-semibold text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-all duration-200 block flex items-center"
+                      className="w-full px-3 py-2.5 text-sm font-semibold text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-all duration-200 block items-center"
                     >
                       <Grid3X3 className="w-4 h-4 mr-2" />
                       View All Products
@@ -321,7 +181,7 @@ export function NavBar() {
             <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
               {/* Desktop Search Bar */}
               <div className="block">
-                <ModernSearchSystem onSearch={handleSearch} />
+                <ModernSearchSystem onSearch={(query) => console.log('Search query:', query)} />
               </div>
 
               {/* Cart - Only render after client-side mount to prevent SSR errors */}
@@ -332,7 +192,6 @@ export function NavBar() {
                   // Placeholder that matches the CartSidebar dimensions to prevent layout shift
                   <Button
                     variant="ghost"
-                    size="sm"
                     className="h-10 w-10 p-0 text-gray-700 hover:text-gray-900 hover:bg-gray-50 relative rounded-xl"
                     disabled
                   >
