@@ -55,18 +55,20 @@ export default function CartSidebar() {
         <button className="relative p-3 rounded-full transition-all duration-200 active:scale-95 lg:hover:bg-gray-100 lg:text-gray-700 text-white touch-manipulation">
           <ShoppingCart className="h-6 w-6" />
           {itemCount > 0 && (
-          <Badge 
-  className="absolute -top-1 -right-1 h-3 w-3 rounded-full p-0 bg-white border-2 border-white shadow-sm"
-/>
+            <Badge 
+              className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 bg-red-500 text-white text-xs flex items-center justify-center border-2 border-white shadow-sm"
+            >
+              {itemCount > 99 ? '99+' : itemCount}
+            </Badge>
           )}
         </button>
       </SheetTrigger>
       
       <SheetContent 
         side="right" 
-        className="w-full sm:w-[420px] flex flex-col p-0 bg-gray-50 border-l border-gray-200"
+        className="w-full sm:w-[420px] p-0 bg-gray-50 border-l border-gray-200 flex flex-col h-full"
       >
-        {/* Header */}
+        {/* Header - Fixed */}
         <SheetHeader className="flex-shrink-0 px-6 py-5 bg-white border-b border-gray-200 shadow-sm">
           <SheetTitle className="text-xl font-bold text-gray-900 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -75,11 +77,16 @@ export default function CartSidebar() {
               </div>
               Your Cart
             </div>
-          
+            {!isEmpty && (
+              <Badge variant="secondary" className="text-xs">
+                {itemCount} {itemCount === 1 ? 'item' : 'items'}
+              </Badge>
+            )}
           </SheetTitle>
         </SheetHeader>
 
-        <div className="flex-1 flex flex-col min-h-0">
+        {/* Main Content Area - Flexible */}
+        <div className="flex-1 flex flex-col overflow-hidden">
           {isEmpty ? (
             /* Empty State */
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-white mx-4 my-6 rounded-2xl shadow-sm border border-gray-100">
@@ -101,20 +108,24 @@ export default function CartSidebar() {
             </div>
           ) : (
             <>
-              {/* Cart Items */}
-              <ScrollArea className="flex-1 px-4 py-2">
-                <div className="space-y-3 pb-4">
-                  {cartItems.map((item, index) => (
-                    <CartCard
-                      prop={item}
-                      key={`sidebar-cart-${item.item.id}-${item.qty}-${index}`}
-                      isCompact={true}
-                    />
-                  ))}
-                </div>
-              </ScrollArea>
+              {/* Cart Items - Scrollable */}
+              <div className="flex-1 overflow-hidden">
+                <ScrollArea className="h-full">
+                  <div className="px-4 py-4 space-y-3">
+                    {cartItems.map((item, index) => (
+                      <CartCard
+                        prop={item}
+                        key={`sidebar-cart-${item.item.id}-${item.qty}-${index}`}
+                        isCompact={true}
+                      />
+                    ))}
+                    {/* Add padding at bottom to ensure last item is visible */}
+                    <div className="h-4" />
+                  </div>
+                </ScrollArea>
+              </div>
 
-              {/* Footer */}
+              {/* Footer - Fixed at bottom */}
               <div className="flex-shrink-0 bg-white border-t border-gray-200 shadow-lg">
                 {/* Summary */}
                 <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-white">
@@ -125,7 +136,7 @@ export default function CartSidebar() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">{itemCount} items</span>
+                    <span className="text-xs text-gray-500">{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
                     <span className="text-xs text-[#16a34a] font-medium">Free delivery</span>
                   </div>
                 </div>
@@ -136,7 +147,8 @@ export default function CartSidebar() {
                 <div className="p-4 space-y-3">
                   <Button
                     onClick={handleCheckout}
-                    className="w-full h-12 text-base font-bold bg-[#16a34a] hover:bg-[#16a34a]/90 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 active:scale-98 group"
+                    disabled={isEmpty}
+                    className="w-full h-12 text-base font-bold bg-[#16a34a] hover:bg-[#16a34a]/90 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 active:scale-98 group disabled:opacity-50 disabled:cursor-not-allowed"
                     size="lg"
                   >
                     <span className="mr-2">Proceed to Checkout</span>
@@ -155,8 +167,9 @@ export default function CartSidebar() {
                     
                     <Button
                       onClick={handleClearCart}
+                      disabled={isEmpty}
                       variant="outline"
-                      className="px-4 h-10 text-sm font-medium text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700 rounded-lg transition-all duration-200 active:scale-98"
+                      className="px-4 h-10 text-sm font-medium text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700 rounded-lg transition-all duration-200 active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
                       size="sm"
                     >
                       <Trash2 className="h-4 w-4" />

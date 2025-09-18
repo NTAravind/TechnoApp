@@ -313,8 +313,8 @@ function SearchComponent({ onSearch, categories, currentCategory, variant = 'def
     <div className="flex items-center gap-3 w-full">
       {/* Search Input */}
       <div ref={searchContainerRef} className="relative flex-1">
-        <div className="relative bg-white rounded-md">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <div className="relative bg-white rounded-md" style={{backgroundColor: '#ffffff', colorScheme: 'light'}}>
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" style={{color: '#9ca3af'}} />
           <Input
             ref={inputRef}
             value={searchQuery}
@@ -327,6 +327,7 @@ function SearchComponent({ onSearch, categories, currentCategory, variant = 'def
                 ? 'border border-gray-200 bg-white'
                 : 'border-0 bg-white'
             }`}
+            style={{backgroundColor: '#ffffff', color: '#111827', colorScheme: 'light'}}
           />
           {searchQuery && (
             <Button
@@ -342,7 +343,7 @@ function SearchComponent({ onSearch, categories, currentCategory, variant = 'def
 
         {/* Search Suggestions Dropdown */}
         {isSearchOpen && (
-          <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-lg border border-gray-100 z-50 max-h-96 overflow-y-auto">
+          <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-lg border border-gray-100 z-50 max-h-96 overflow-y-auto" style={{backgroundColor: '#ffffff', colorScheme: 'light'}}>
             {isLoading ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-6 w-6 border-2 border-gray-200 border-t-gray-600" />
@@ -402,15 +403,19 @@ function SearchComponent({ onSearch, categories, currentCategory, variant = 'def
       </div>
       
       {/* Filter Button */}
-      <div ref={filterContainerRef} className="relative bg-white rounded-md ">
+      <div ref={filterContainerRef} className="relative" style={{ colorScheme: 'light'}}>
         <Button
           onClick={() => setIsFilterOpen(!isFilterOpen)}
           variant="outline"
-          className={`h-12 w-12 p-0 border-0 rounded-xl shadow-sm transition-all duration-200 ${
+          className={`h-12 w-12 p-0 rounded-xl shadow-sm transition-all duration-200 ${
             variant === 'outlined'
-              ? `bg-[#16a34a] hover:bg-[#15803d] text-white ${isFilterOpen ? 'bg-[#15803d] shadow-md' : ''}`
-              : `bg-white hover:bg-gray-50 hover:shadow-md ${isFilterOpen ? 'bg-gray-50 shadow-md' : ''}`
-          }`}
+              ? 'bg-[#16a34a] hover:bg-[#15803d] text-white border-none'
+              : 'bg-gray-100 hover:bg-gray-200 text-green-800 border-none'
+          } ${isFilterOpen ? 'bg-[#15803d]' : ''}`}
+          style={{
+            backgroundColor: variant === 'outlined' ? '#16a34a' : undefined,
+            ...(isFilterOpen && variant === 'outlined' ? { backgroundColor: '#15803d' } : {}),
+          }}
         >
           <SlidersHorizontal className={`h-5 w-5 ${
             variant === 'outlined' ? 'text-white' : 'text-green-800'
@@ -427,7 +432,7 @@ function SearchComponent({ onSearch, categories, currentCategory, variant = 'def
             />
             
             {/* Modal Content */}
-            <div className="absolute inset-x-0 top-0 bg-white transition-transform duration-300 max-h-screen overflow-y-auto">
+            <div className="absolute inset-x-0 top-0 bg-white transition-transform duration-300 max-h-screen overflow-y-auto" style={{backgroundColor: '#ffffff', colorScheme: 'light'}}>
               <div className="px-4 py-6">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
