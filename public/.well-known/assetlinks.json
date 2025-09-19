@@ -3,6 +3,6 @@
       "target": {
         "namespace": "android_app",
         "package_name": "site.infiniagc.techno.twa",
-        "sha256_cert_fingerprints": ["EC:CF:A9:AE:4A:14:14:0F:AA:FA:FA:6B:9F:75:AA:BD:5D:6B:A9:15:11:51:A7:68:7B:49:C8:25:42:E7:F5:AD"]
+        "sha256_cert_fingerprints": ["BD:69:17:AE:2C:2B:0F:32:6A:03:D6:F8:DB:08:31:21:D2:C2:9C:82:23:DE:73:D1:C5:74:D4:82:AA:78:62:E5"]
       }
     }]
