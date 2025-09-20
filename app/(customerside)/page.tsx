@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { HomePageClient } from './components/HomeClient'
 import NotificationSubscriptionPrompt from '@/app/(customerside)/components/PushNotification'
 import type { Metadata } from 'next'
+import { Phetsarath } from 'next/font/google'
 
 
 // Static category mappings for better mobile experience and fallback
@@ -347,33 +348,26 @@ export const revalidate = 3600 // 1 hour for ISR fallback
 
 export default async function HomePage() {
   const session = await auth()
-  const phone = session?.user?.name as string
-
-  if (!phone) {
+  
+  if (!session?.user) {
     redirect('/login')
   }
+  
+  const phone = session.user.name;
 
-  // Get customer data with caching
-  const customer = await unstable_cache(
-    async () => {
-      return await prisma.customer.findUnique({
-        where: { phone },
-        select: { 
-          id: true, 
-          name: true,
-          phone: true 
-        }
-      })
-    },
-    [`customer-${phone}`],
-    { 
-      revalidate: 3600, // 1 hour
-      tags: [`customer-${phone}`]
+  // Get customer data WITHOUT caching to avoid stale data issues
+  const customer = await prisma.customer.findUnique({
+    where: { phone },
+    select: { 
+      id: true, 
+      name: true,
+      phone: true 
     }
-  )()
+  })
 
-  if (!customer) {
-    redirect('/login')
+  // If customer doesn't exist OR customer exists but name is not filled
+  if (!customer || !customer.name || customer.name.trim() === '') {
+    redirect('/profile/setup')
   }
 
   // Fetch all data in parallel with optimized caching
