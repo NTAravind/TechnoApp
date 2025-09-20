@@ -28,10 +28,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const { phone } = body
-    if(phone == '9019977375'){   return NextResponse.json({
-      success: true,
-      message: 'OTP sent successfully via WhatsApp',
-    })}
+
     if (!phone) {
       return NextResponse.json(
         { success: false, error: 'Phone number is required' },
