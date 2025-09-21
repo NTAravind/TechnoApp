@@ -18,7 +18,7 @@ async function CategoriesList() {
         <h3 className="text-lg font-semibold text-muted-foreground mb-2">No categories found</h3>
         <p className="text-sm text-muted-foreground mb-4">Get started by creating your first category</p>
         <Button asChild>
-          <Link href="/categories/new">
+          <Link href="/admin/categories/new">
             <Plus className="h-4 w-4 mr-2" />
             Create Category
           </Link>
@@ -104,7 +104,7 @@ export default function CategoriesPage() {
           </p>
         </div>
         <Button asChild>
-          <Link href="/categories/new">
+          <Link href="/admin/categories/new">
             <Plus className="h-4 w-4 mr-2" />
             Add Category
           </Link>

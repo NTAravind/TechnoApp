@@ -63,11 +63,8 @@ export default function NotificationSubscriptionPrompt({
   const [permissionState, setPermissionState] = useState<NotificationPermission>('default')
   const [showUnsubscribeConfirm, setShowUnsubscribeConfirm] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
-  const [userEngaged, setUserEngaged] = useState(false)
   
   const notificationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const promptTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const dailyPromptTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isProcessingRef = useRef(false)
 
   const showNotification = useCallback((type: 'success' | 'error', message: string, duration = 4000) => {
@@ -88,88 +85,23 @@ export default function NotificationSubscriptionPrompt({
     }
   }, [isSubscribed, onSubscriptionChange, isInitialized])
 
-  // Track user engagement
-  useEffect(() => {
-    const handleEngagement = () => {
-      if (!userEngaged) setUserEngaged(true)
-    }
-    window.addEventListener('scroll', handleEngagement, { once: true })
-    window.addEventListener('click', handleEngagement, { once: true })
-    return () => {
-      window.removeEventListener('scroll', handleEngagement)
-      window.removeEventListener('click', handleEngagement)
-    }
-  }, [userEngaged])
-
-  // Enhanced function to check if we can show prompt (2 times per day)
+  // Simple function to check if we should show prompt (only check permanent dismissal)
   const canShowPrompt = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0]
-    const lastShown = localStorage.getItem('notification-prompt-last-shown')
-    const promptCount = parseInt(localStorage.getItem('notification-prompt-count') || '0', 10)
     const permanentDismissal = localStorage.getItem('notification-prompt-permanently-dismissed')
-
-    // Don't show if permanently dismissed
-    if (permanentDismissal === 'true') {
-      return false
-    }
-
-    // Reset count if it's a new day
-    if (lastShown !== today) {
-      localStorage.setItem('notification-prompt-count', '0')
-      localStorage.setItem('notification-prompt-last-shown', today)
-      return true
-    }
-
-    // Allow prompt if under 2 displays today
-    return promptCount < 2
+    return permanentDismissal !== 'true'
   }, [])
 
-  // Function to increment prompt count
-  const incrementPromptCount = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0]
-    const promptCount = parseInt(localStorage.getItem('notification-prompt-count') || '0', 10)
-    
-    localStorage.setItem('notification-prompt-count', (promptCount + 1).toString())
-    localStorage.setItem('notification-prompt-last-shown', today)
-  }, [])
-
-  // Schedule automatic prompts throughout the day for unsubscribed users
-  const scheduleAutomaticPrompts = useCallback(() => {
+  // Show prompt immediately when conditions are met - UPDATED
+  const showPromptForUnsubscribed = useCallback(() => {
     if (isSubscribed || !isSupported || !canShowPrompt()) {
       return
     }
 
-    // Clear existing timeout
-    if (dailyPromptTimeoutRef.current) {
-      clearTimeout(dailyPromptTimeoutRef.current)
+    // Show prompt IMMEDIATELY - no delay
+    if (!isSubscribed && canShowPrompt()) {
+      setShowPrompt(true)
     }
-
-    const now = new Date()
-    const today = new Date().toISOString().split('T')[0]
-    const promptCount = parseInt(localStorage.getItem('notification-prompt-count') || '0', 10)
-
-    // If we haven't shown any prompts today, schedule the first one
-    if (promptCount === 0) {
-      // Show first prompt after 30 seconds if user is engaged
-      dailyPromptTimeoutRef.current = setTimeout(() => {
-        if (!isSubscribed && userEngaged && canShowPrompt()) {
-          setShowPrompt(true)
-          incrementPromptCount()
-        }
-      }, 30000) // 30 seconds
-    }
-    // If we've shown 1 prompt today, schedule the second one
-    else if (promptCount === 1) {
-      // Calculate time for second prompt (e.g., 4 hours after first prompt)
-      const fourHoursInMs = 4 * 60 * 60 * 1000
-      dailyPromptTimeoutRef.current = setTimeout(() => {
-        if (!isSubscribed && canShowPrompt()) {
-          setShowPrompt(true)
-          incrementPromptCount()
-        }
-      }, fourHoursInMs)
-    }
-  }, [isSubscribed, isSupported, canShowPrompt, incrementPromptCount, userEngaged])
+  }, [isSubscribed, isSupported, canShowPrompt])
 
   useEffect(() => {
     let isMounted = true
@@ -197,27 +129,18 @@ export default function NotificationSubscriptionPrompt({
       if (notificationTimeoutRef.current) {
         clearTimeout(notificationTimeoutRef.current)
       }
-      if (promptTimeoutRef.current) {
-        clearTimeout(promptTimeoutRef.current)
-      }
-      if (dailyPromptTimeoutRef.current) {
-        clearTimeout(dailyPromptTimeoutRef.current)
-      }
     }
   }, [customerId, showNotification])
 
-  // Schedule automatic prompts when conditions change
+  // Show prompt IMMEDIATELY when component is ready and user is unsubscribed - UPDATED
   useEffect(() => {
-    if (isInitialized && !isSubscribed && userEngaged) {
-      scheduleAutomaticPrompts()
+    if (isInitialized && !isSubscribed) {
+      // Use requestAnimationFrame to ensure DOM is ready, but still immediate to user
+      requestAnimationFrame(() => {
+        showPromptForUnsubscribed()
+      })
     }
-
-    return () => {
-      if (dailyPromptTimeoutRef.current) {
-        clearTimeout(dailyPromptTimeoutRef.current)
-      }
-    }
-  }, [isInitialized, isSubscribed, userEngaged, scheduleAutomaticPrompts])
+  }, [isInitialized, isSubscribed, showPromptForUnsubscribed])
 
   const checkSupport = async (): Promise<void> => {
     return new Promise((resolve) => {
@@ -314,15 +237,8 @@ export default function NotificationSubscriptionPrompt({
         setShowPrompt(false)
         showNotification('success', 'Successfully subscribed to order notifications!')
         
-        // Clear all prompt-related localStorage when successfully subscribed
-        localStorage.removeItem('notification-prompt-count')
-        localStorage.removeItem('notification-prompt-last-shown')
+        // Clear permanent dismissal when successfully subscribed
         localStorage.removeItem('notification-prompt-permanently-dismissed')
-        
-        // Clear any scheduled prompts
-        if (dailyPromptTimeoutRef.current) {
-          clearTimeout(dailyPromptTimeoutRef.current)
-        }
         
         // Welcome notification
         if (Notification.permission === 'granted') {
@@ -379,13 +295,13 @@ export default function NotificationSubscriptionPrompt({
         setIsSubscribed(false)
         showNotification('success', 'Successfully unsubscribed from notifications.')
         
-        // Reset prompt counts to allow showing prompts again
-        localStorage.removeItem('notification-prompt-count')
-        localStorage.removeItem('notification-prompt-last-shown')
+        // Reset permanent dismissal to allow showing prompts again
         localStorage.removeItem('notification-prompt-permanently-dismissed')
         
-        // Schedule new prompts for the unsubscribed user
-        scheduleAutomaticPrompts()
+        // Show prompt immediately for the newly unsubscribed user
+        requestAnimationFrame(() => {
+          showPromptForUnsubscribed()
+        })
       } else {
         const errorMsg = !result.success && 'error' in result ? result.error : 'Failed to remove subscription'
         throw new Error(errorMsg)
@@ -420,10 +336,7 @@ export default function NotificationSubscriptionPrompt({
       // Permanently dismiss - won't show again until they unsubscribe/resubscribe
       localStorage.setItem('notification-prompt-permanently-dismissed', 'true')
     }
-    
-    // Always increment count when dismissing
-    incrementPromptCount()
-  }, [incrementPromptCount])
+  }, [])
 
   useEffect(() => {
     if (isSubscribed) {
@@ -438,7 +351,6 @@ export default function NotificationSubscriptionPrompt({
         setShowUnsubscribeConfirm(true)
       } else if (canShowPrompt()) {
         setShowPrompt(true)
-        incrementPromptCount()
       }
     }
 
@@ -451,7 +363,7 @@ export default function NotificationSubscriptionPrompt({
         delete (window as any).showNotificationPrompt
       }
     }
-  }, [isSubscribed, canShowPrompt, incrementPromptCount])
+  }, [isSubscribed, canShowPrompt])
 
   if (!isSupported || !isInitialized) {
     return null
@@ -555,7 +467,7 @@ export default function NotificationSubscriptionPrompt({
                     className="flex-1 px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
                     disabled={isLoading}
                   >
-                    Remind me later
+                    Not now
                   </button>
                   <button
                     onClick={() => dismissPrompt(true)}

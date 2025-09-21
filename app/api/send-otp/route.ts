@@ -72,7 +72,7 @@ export async function POST(req: Request) {
           to: `91${phone}`,
           type: 'template',
           template: {
-            name: 'whatsappauth',
+            name: 'technowhatsappauth',
             language: { code: 'en' },
             components: [
               {

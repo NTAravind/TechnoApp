@@ -3,10 +3,7 @@ import prisma from '@/lib/prisma'
 import { unstable_cache } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { HomePageClient } from './components/HomeClient'
-import NotificationSubscriptionPrompt from '@/app/(customerside)/components/PushNotification'
 import type { Metadata } from 'next'
-import { Phetsarath } from 'next/font/google'
-
 
 // Static category mappings for better mobile experience and fallback
 const STATIC_CATEGORIES = [
@@ -21,7 +18,7 @@ const STATIC_CATEGORIES = [
   { id: 9, name: 'Consumer', displayName: 'Consumer', fallbackImage: '/images/categories/consumer.jpg' },
 ]
 
-// Enhanced cached categories with aggressive caching
+// PERMANENT caching for categories (revalidate: false = cache forever)
 const getCachedCategories = unstable_cache(
   async () => {
     try {
@@ -76,21 +73,21 @@ const getCachedCategories = unstable_cache(
       }))
     }
   },
-  ['enhanced-categories-v2'],
+  ['categories-permanent-v3'],
   { 
-    revalidate: 86400, // 24 hours - categories don't change often
-    tags: ['categories', 'products']
+    revalidate: false, // Cache permanently - only manual invalidation
+    tags: ['categories']
   }
 )
 
-// Featured products with longer cache time
+// PERMANENT caching for products (they don't change frequently)
 const getCachedFeaturedProducts = unstable_cache(
   async () => {
     try {
       return await prisma.product.findMany({
         where: { 
           isVisible: true,
-          imgurl: { not: null } // Only get products with images
+          imgurl: { not: null }
         },
         select: {
           id: true,
@@ -115,14 +112,14 @@ const getCachedFeaturedProducts = unstable_cache(
       return []
     }
   },
-  ['featured-products-v2'],
+  ['featured-products-permanent-v3'],
   { 
-    revalidate: 7200, // 2 hours
+    revalidate: false, // Cache permanently
     tags: ['products', 'featured']
   }
 )
 
-// Latest products with shorter cache for freshness
+// PERMANENT caching for latest products
 const getCachedLatestProducts = unstable_cache(
   async () => {
     try {
@@ -159,14 +156,14 @@ const getCachedLatestProducts = unstable_cache(
       return []
     }
   },
-  ['latest-products-v2'],
+  ['latest-products-permanent-v3'],
   { 
-    revalidate: 3600, // 1 hour
+    revalidate: false, // Cache permanently
     tags: ['products', 'latest']
   }
 )
 
-// Global stats cached for longer periods
+// PERMANENT caching for global stats (except order-related stats)
 const getCachedGlobalStats = unstable_cache(
   async () => {
     try {
@@ -177,7 +174,7 @@ const getCachedGlobalStats = unstable_cache(
           where: { 
             isVisible: true,
             createdAt: {
-              gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
+              gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
             }
           }
         })
@@ -193,93 +190,70 @@ const getCachedGlobalStats = unstable_cache(
       return { totalProducts: 0, totalCategories: 0, latestProducts: 0 }
     }
   },
-  ['global-stats'],
+  ['global-stats-permanent-v3'],
   { 
-    revalidate: 21600, // 6 hours
+    revalidate: false, // Cache permanently
     tags: ['stats', 'products', 'categories']
   }
 )
 
-// Customer-specific data with shorter cache
-async function getCachedCustomerStats(customerId: number) {
-  return unstable_cache(
-    async () => {
-      try {
-        const [totalOrders, pendingOrders] = await Promise.all([
-          prisma.order.count({
-            where: { customerId }
-          }),
-          prisma.order.count({
-            where: { 
-              customerId,
-              complete: false
-            }
-          })
-        ])
-
-        const globalStats = await getCachedGlobalStats()
-        
-        return { 
-          totalOrders, 
-          pendingOrders, 
-          latestProducts: globalStats.latestProducts 
+// Orders are NOT permanently cached - they need to be fresh
+async function getCustomerOrderStats(customerId: number) {
+  try {
+    const [totalOrders, pendingOrders] = await Promise.all([
+      prisma.order.count({
+        where: { customerId }
+      }),
+      prisma.order.count({
+        where: { 
+          customerId,
+          complete: false
         }
-      } catch (error) {
-        console.error('Error fetching customer stats:', error)
-        return { totalOrders: 0, pendingOrders: 0, latestProducts: 0 }
-      }
-    },
-    [`customer-stats-${customerId}`],
-    { 
-      revalidate: 1800, // 30 minutes
-      tags: [`customer-${customerId}`, 'orders']
-    }
-  )()
+      })
+    ])
+
+    return { totalOrders, pendingOrders }
+  } catch (error) {
+    console.error('Error fetching customer order stats:', error)
+    return { totalOrders: 0, pendingOrders: 0 }
+  }
 }
 
-async function getCachedRecentOrders(customerId: number) {
-  return unstable_cache(
-    async () => {
-      try {
-        const orders = await prisma.order.findMany({
-          where: { customerId },
+// Recent orders are NOT cached - always fresh
+async function getRecentOrders(customerId: number) {
+  try {
+    const orders = await prisma.order.findMany({
+      where: { customerId },
+      select: {
+        id: true,
+        total: true,
+        delivered: true,
+        complete: true,
+        createdAt: true,
+        items: {
           select: {
-            id: true,
-            total: true,
-            delivered: true,
-            complete: true,
-            createdAt: true,
-            items: {
-              select: {
-                quantity: true
-              }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 3
-        })
+            quantity: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 3
+    })
 
-        return orders.map(order => ({
-          id: order.id,
-          items: order.items.reduce((sum, item) => sum + item.quantity, 0),
-          total: order.total,
-          status: order.delivered ? 'delivered' : (order.complete ? 'processing' : 'pending'),
-          date: getRelativeDate(order.createdAt)
-        }))
-      } catch (error) {
-        console.error('Error fetching recent orders:', error)
-        return []
-      }
-    },
-    [`recent-orders-${customerId}`],
-    { 
-      revalidate: 1800, // 30 minutes
-      tags: [`customer-${customerId}`, 'orders']
-    }
-  )()
+    return orders.map(order => ({
+      id: order.id,
+      items: order.items.reduce((sum, item) => sum + item.quantity, 0),
+      total: order.total,
+      status: order.delivered ? 'delivered' : (order.complete ? 'processing' : 'pending'),
+      date: getRelativeDate(order.createdAt)
+    }))
+  } catch (error) {
+    console.error('Error fetching recent orders:', error)
+    return []
+  }
 }
 
-// Server action to get category products count with caching
+// PERMANENT caching for category product counts
 async function getCategoryProductsCount(categoryId: number) {
   'use server'
   
@@ -298,9 +272,9 @@ async function getCategoryProductsCount(categoryId: number) {
         return 0
       }
     },
-    [`category-count-${categoryId}`],
+    [`category-count-${categoryId}-permanent-v3`],
     { 
-      revalidate: 7200, // 2 hours
+      revalidate: false, // Cache permanently
       tags: ['categories', 'products', `category-${categoryId}`]
     }
   )()
@@ -318,7 +292,7 @@ function getRelativeDate(date: Date) {
   return `${Math.floor(diffInDays / 30)} months ago`
 }
 
-// Metadata for SEO
+// SEO Metadata
 export const metadata: Metadata = {
   title: 'Techno Industries - Quality Industrial Products',
   description: 'Welcome to Techno Industries - Where Quality Meets Trust. Shop drip pipes, micro tubes, PVC fittings and more.',
@@ -342,9 +316,9 @@ export const metadata: Metadata = {
   },
 }
 
-// Static generation configuration
-export const dynamic = 'force-dynamic' // Due to auth requirements
-export const revalidate = 3600 // 1 hour for ISR fallback
+// Force dynamic rendering due to auth and fresh order data
+export const dynamic = 'force-dynamic'
+export const revalidate = false // No automatic revalidation
 
 export default async function HomePage() {
   const session = await auth()
@@ -353,9 +327,9 @@ export default async function HomePage() {
     redirect('/login')
   }
   
-  const phone = session.user.name;
+  const phone = session.user.name
 
-  // Get customer data WITHOUT caching to avoid stale data issues
+  // Get customer data - this is fast and doesn't need caching
   const customer = await prisma.customer.findUnique({
     where: { phone },
     select: { 
@@ -365,25 +339,33 @@ export default async function HomePage() {
     }
   })
 
-  // If customer doesn't exist OR customer exists but name is not filled
+  // Redirect if customer doesn't exist or name is not filled
   if (!customer || !customer.name || customer.name.trim() === '') {
     redirect('/profile/setup')
   }
 
-  // Fetch all data in parallel with optimized caching
+  // Fetch cached data (permanent) and fresh order data in parallel
   const [
     categories, 
     featuredProducts, 
     latestProducts, 
-    stats, 
+    globalStats,
+    orderStats,
     recentOrders
   ] = await Promise.all([
-    getCachedCategories(),
-    getCachedFeaturedProducts(),
-    getCachedLatestProducts(),
-    getCachedCustomerStats(customer.id),
-    getCachedRecentOrders(customer.id)
+    getCachedCategories(), // Permanently cached
+    getCachedFeaturedProducts(), // Permanently cached
+    getCachedLatestProducts(), // Permanently cached
+    getCachedGlobalStats(), // Permanently cached
+    getCustomerOrderStats(customer.id), // Fresh data
+    getRecentOrders(customer.id) // Fresh data
   ])
+
+  // Combine stats
+  const stats = {
+    ...orderStats,
+    latestProducts: globalStats.latestProducts
+  }
 
   return (
     <div className="min-h-screen bg-background">

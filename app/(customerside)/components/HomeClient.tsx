@@ -1,32 +1,45 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 import { 
   ShoppingBag, 
   Package, 
   Clock, 
-  Star, 
   ArrowRight, 
   Truck,
   Bell,
   BellOff,
   Grid3X3,
-  ChevronLeft,
-  ChevronRight
+  User,
+  Settings,
+  LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { ModernSearchSystem } from '@/app/(customerside)/components/products/ModernBar'
 import ProductCard from '@/app/(customerside)/components/products/productcard'
-import dynamic from 'next/dynamic'
 import Image from 'next/image'
 
-// Dynamically import the notification component to avoid SSR issues
+// Dynamic imports to prevent SSR issues
+import dynamic from 'next/dynamic'
+
 const NotificationSubscriptionPrompt = dynamic(
   () => import('@/app/(customerside)/components/PushNotification'),
-  { ssr: false }
+  { 
+    ssr: false,
+    loading: () => null // No loading state to avoid layout shift
+  }
 )
 
 // Type definitions
@@ -80,26 +93,74 @@ interface HomePageClientProps {
   getCategoryProductsCount: (categoryId: number) => Promise<number>
 }
 
-// Updated Header Component
+// Header Component - Updated with dropdown menu
 const Header = ({ 
   customerName, 
   onNotificationClick,
   isNotificationSubscribed,
-  hasNotificationPrompt 
+  hasNotificationPrompt,
+  isClient
 }: { 
   customerName: string
   onNotificationClick: () => void
   isNotificationSubscribed: boolean
   hasNotificationPrompt: boolean
+  isClient: boolean
 }) => {
+  const router = useRouter()
+  
+  const handleEditProfile = () => {
+    router.push('/profile/edit')
+  }
+  
+  const handleLogout = async () => {
+    try {
+      await signOut({ 
+        callbackUrl: '/', 
+        redirect: true 
+      })
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
+
   return (
     <div className="flex items-center justify-between px-6 py-4 bg-background">
       <div className="flex items-center gap-4">
-        <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-          <span className="text-lg font-bold text-primary">
-            {customerName.charAt(0).toUpperCase()}
-          </span>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-12 w-12 rounded-full p-0 bg-primary/10 hover:bg-primary/20 transition-colors">
+              <span className="text-lg font-bold text-primary">
+                {customerName.charAt(0).toUpperCase()}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">{customerName}</p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  Customer Account
+                </p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleEditProfile} className="cursor-pointer">
+              <User className="mr-2 h-4 w-4" />
+              <span>Edit Profile</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/orders')} className="cursor-pointer">
+              <Package className="mr-2 h-4 w-4" />
+              <span>My Orders</span>
+            </DropdownMenuItem>
+           
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Logout</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <div>
           <p className="text-sm text-muted-foreground mb-0.5">Welcome</p>
           <p className="font-semibold text-base">{customerName}</p>
@@ -109,26 +170,26 @@ const Header = ({
         <Button 
           size="sm"
           className={`rounded-lg w-12 h-12 p-0 flex items-center justify-center transition-all duration-200 ${
-            isNotificationSubscribed 
+            isClient && isNotificationSubscribed 
               ? 'bg-green-600 hover:bg-green-700 text-white shadow-md' 
               : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
           }`}
           onClick={onNotificationClick}
         >
-          {isNotificationSubscribed ? (
+          {isClient && isNotificationSubscribed ? (
             <Bell className="h-5 w-5 text-white fill-current" />
           ) : (
             <BellOff className="h-5 w-5" />
           )}
         </Button>
         
-        {/* Show notification dot if there's a prompt available and not subscribed */}
-        {hasNotificationPrompt && !isNotificationSubscribed && (
+        {/* Show notification dot only on client side */}
+        {isClient && hasNotificationPrompt && !isNotificationSubscribed && (
           <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
         )}
         
-        {/* Show active indicator for subscribed users */}
-        {isNotificationSubscribed && (
+        {/* Show active indicator for subscribed users only on client side */}
+        {isClient && isNotificationSubscribed && (
           <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
         )}
       </div>
@@ -136,7 +197,7 @@ const Header = ({
   )
 }
 
-// Search Section Component - Using ModernSearchSystem
+// Search Section Component
 const SearchSection = ({ categories }: { categories: Category[] }) => {
   return (
     <div className="px-6 mb-6">
@@ -162,7 +223,7 @@ function HomeCard() {
   )
 }
 
-// Quick Stats Component - Updated to show latest products instead of favorites
+// Quick Stats Component
 const QuickStats = ({ stats }: { stats: Stats }) => {
   return (
     <div className="px-6 mb-8">
@@ -195,7 +256,7 @@ const QuickStats = ({ stats }: { stats: Stats }) => {
   )
 }
 
-// Enhanced Static Categories Grid Component
+// Categories Grid Component - Fixed image loading
 const CategoriesGrid = ({ 
   categories, 
   onCategoryClick 
@@ -217,7 +278,6 @@ const CategoriesGrid = ({
         </Button>
       </div>
       
-      {/* Static Grid Layout - Mobile (2 columns) and Desktop (3 columns) */}
       <div className="px-6">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {categories.slice(0, 8).map((category) => (
@@ -227,7 +287,6 @@ const CategoriesGrid = ({
               onClick={() => onCategoryClick(category.id)}
             >
               <CardContent className="p-0">
-                {/* Image Container with Fixed Aspect Ratio */}
                 <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100">
                   {category.imageUrl ? (
                     <Image
@@ -236,7 +295,12 @@ const CategoriesGrid = ({
                       fill
                       className="object-cover transition-all duration-500 group-hover:scale-110"
                       sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                      priority={category.id <= 4} // Prioritize first 4 images
+                      priority={category.id <= 4}
+                      onError={(e) => {
+                        // Fallback to placeholder if image fails to load
+                        const target = e.target as HTMLImageElement
+                        target.style.display = 'none'
+                      }}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/10 to-primary/20">
@@ -244,10 +308,8 @@ const CategoriesGrid = ({
                     </div>
                   )}
                   
-                  {/* Subtle overlay for better text contrast */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300" />
                   
-                  {/* Product count badge - Top right corner */}
                   <div className="absolute top-2 right-2 transform translate-x-0 group-hover:translate-x-1 transition-transform duration-300">
                     <Badge 
                       variant="secondary" 
@@ -258,7 +320,6 @@ const CategoriesGrid = ({
                   </div>
                 </div>
                 
-                {/* Content Section with Fixed Height for Uniformity */}
                 <div className="p-3 sm:p-4 h-16 sm:h-18 flex items-center justify-center bg-white group-hover:bg-gray-50/50 transition-colors duration-300">
                   <h3 className="font-semibold text-sm sm:text-base leading-tight text-center text-gray-800 line-clamp-2 group-hover:text-primary transition-colors duration-300">
                     {category.name}
@@ -269,7 +330,6 @@ const CategoriesGrid = ({
           ))}
         </div>
         
-        {/* Show remaining categories button if there are more than 8 */}
         {categories.length > 8 && (
           <div className="mt-6 text-center">
             <Button 
@@ -287,7 +347,7 @@ const CategoriesGrid = ({
   )
 }
 
-// Featured Products Component - Updated to use ProductCard
+// Featured Products Component
 const FeaturedProducts = ({ 
   products, 
   onProductClick 
@@ -414,7 +474,7 @@ const RecentOrders = ({
   )
 }
 
-// Main Client Component
+// Main Client Component - Fixed SSR issues
 export function HomePageClient({
   customerName,
   customerId,
@@ -426,12 +486,20 @@ export function HomePageClient({
   getCategoryProductsCount
 }: HomePageClientProps) {
   const router = useRouter()
+  const [isClient, setIsClient] = useState(false)
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false)
   const [hasNotificationPrompt, setHasNotificationPrompt] = useState(false)
   const [isNotificationSubscribed, setIsNotificationSubscribed] = useState(false)
 
-  // Check notification status on component mount
+  // Handle client-side hydration
   useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  // Check notification status only on client side
+  useEffect(() => {
+    if (!isClient) return
+
     const checkNotificationStatus = async () => {
       if ('serviceWorker' in navigator && 'PushManager' in window) {
         try {
@@ -441,10 +509,8 @@ export function HomePageClient({
           })
           const existingSub = await registration.pushManager.getSubscription()
           
-          // Update subscription status
           setIsNotificationSubscribed(!!existingSub)
           
-          // Show prompt indicator if not subscribed and permission not denied
           const shouldShowPrompt = !existingSub && 
             Notification.permission !== 'denied' && 
             !localStorage.getItem('notification-prompt-dismissed')
@@ -457,10 +523,12 @@ export function HomePageClient({
     }
 
     checkNotificationStatus()
-  }, [])
+  }, [isClient])
 
-  // Add custom CSS for line-clamp and other utilities
+  // Add custom CSS for styling
   useEffect(() => {
+    if (!isClient) return
+
     const style = document.createElement('style')
     style.textContent = `
       .line-clamp-2 {
@@ -479,24 +547,23 @@ export function HomePageClient({
     `
     document.head.appendChild(style)
     return () => {
-      document.head.removeChild(style)
+      if (document.head.contains(style)) {
+        document.head.removeChild(style)
+      }
     }
-  }, [])
+  }, [isClient])
 
   // Navigation handlers
   const handleNotificationClick = () => {
     if (isNotificationSubscribed) {
-      // If subscribed, show unsubscribe confirmation in the notification component
       setShowNotificationPrompt(true)
     } else {
-      // If not subscribed, show subscription prompt
       setShowNotificationPrompt(true)
     }
   }
 
   const handleSubscriptionChange = (subscribed: boolean) => {
     setIsNotificationSubscribed(subscribed)
-    // Update prompt status when subscription changes
     if (subscribed) {
       setHasNotificationPrompt(false)
     }
@@ -529,6 +596,7 @@ export function HomePageClient({
         onNotificationClick={handleNotificationClick}
         isNotificationSubscribed={isNotificationSubscribed}
         hasNotificationPrompt={hasNotificationPrompt}
+        isClient={isClient}
       />
       
       <SearchSection categories={categories} />
@@ -552,8 +620,8 @@ export function HomePageClient({
         onViewAllOrders={handleViewAllOrders}
       />
 
-      {/* Notification Prompt - show when requested */}
-      {showNotificationPrompt && (
+      {/* Notification Prompt - only render on client side */}
+      {isClient && showNotificationPrompt && (
         <NotificationSubscriptionPrompt 
           customerId={customerId}
           onSubscriptionChange={handleSubscriptionChange}
