@@ -153,7 +153,6 @@ const Header = ({
               <Package className="mr-2 h-4 w-4" />
               <span>My Orders</span>
             </DropdownMenuItem>
-           
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
               <LogOut className="mr-2 h-4 w-4" />
@@ -474,7 +473,7 @@ const RecentOrders = ({
   )
 }
 
-// Main Client Component - Fixed SSR issues
+// Main Client Component - Updated to show notification prompt automatically
 export function HomePageClient({
   customerName,
   customerId,
@@ -487,7 +486,6 @@ export function HomePageClient({
 }: HomePageClientProps) {
   const router = useRouter()
   const [isClient, setIsClient] = useState(false)
-  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false)
   const [hasNotificationPrompt, setHasNotificationPrompt] = useState(false)
   const [isNotificationSubscribed, setIsNotificationSubscribed] = useState(false)
 
@@ -496,7 +494,7 @@ export function HomePageClient({
     setIsClient(true)
   }, [])
 
-  // Check notification status only on client side
+  // Check notification status and set prompt visibility
   useEffect(() => {
     if (!isClient) return
 
@@ -511,14 +509,18 @@ export function HomePageClient({
           
           setIsNotificationSubscribed(!!existingSub)
           
+          // Show prompt if not subscribed, permission not denied, and not permanently dismissed
           const shouldShowPrompt = !existingSub && 
             Notification.permission !== 'denied' && 
-            !localStorage.getItem('notification-prompt-dismissed')
+            localStorage.getItem('notification-prompt-permanently-dismissed') !== 'true'
           
           setHasNotificationPrompt(shouldShowPrompt)
         } catch (error) {
           console.error('Error checking notification status:', error)
+          setHasNotificationPrompt(false)
         }
+      } else {
+        setHasNotificationPrompt(false)
       }
     }
 
@@ -555,18 +557,18 @@ export function HomePageClient({
 
   // Navigation handlers
   const handleNotificationClick = () => {
+    // Show unsubscribe confirmation if subscribed, otherwise do nothing as prompt is handled automatically
     if (isNotificationSubscribed) {
-      setShowNotificationPrompt(true)
-    } else {
-      setShowNotificationPrompt(true)
+      if (typeof window !== 'undefined' && (window as any).showNotificationPrompt) {
+        (window as any).showNotificationPrompt()
+      }
     }
   }
 
   const handleSubscriptionChange = (subscribed: boolean) => {
     setIsNotificationSubscribed(subscribed)
-    if (subscribed) {
-      setHasNotificationPrompt(false)
-    }
+    setHasNotificationPrompt(!subscribed && Notification.permission !== 'denied' && 
+      localStorage.getItem('notification-prompt-permanently-dismissed') !== 'true')
   }
 
   const handleCategoryClick = (categoryId: number) => {
@@ -620,8 +622,8 @@ export function HomePageClient({
         onViewAllOrders={handleViewAllOrders}
       />
 
-      {/* Notification Prompt - only render on client side */}
-      {isClient && showNotificationPrompt && (
+      {/* Notification Prompt - render on client side when unsubscribed */}
+      {isClient && hasNotificationPrompt && !isNotificationSubscribed && (
         <NotificationSubscriptionPrompt 
           customerId={customerId}
           onSubscriptionChange={handleSubscriptionChange}

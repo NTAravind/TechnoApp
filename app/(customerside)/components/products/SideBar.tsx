@@ -1,7 +1,7 @@
 'use client'
 
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { ShoppingCart, ArrowRight, Trash2, ShoppingBag } from "lucide-react"
+import { ShoppingCart, ArrowRight, Trash2, ShoppingBag, X } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { usePathname } from "next/navigation"
 import ProductCart from "@/lib/store"
@@ -49,40 +49,46 @@ export default function CartSidebar() {
     router.push("/products")
   }
 
+  const handleClose = () => {
+    setOpen(false)
+  }
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <button className="relative p-3 rounded-full transition-all duration-200 active:scale-95 lg:hover:bg-gray-100 lg:text-gray-700 text-white touch-manipulation">
           <ShoppingCart className="h-6 w-6" />
           {itemCount > 0 && (
-            <Badge 
-              className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 bg-red-500 text-white text-xs flex items-center justify-center border-2 border-white shadow-sm"
-            >
-              {itemCount > 99 ? '99+' : itemCount}
-            </Badge>
+            <div 
+              className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-white border-2 border-white shadow-sm"
+            />
           )}
         </button>
       </SheetTrigger>
       
       <SheetContent 
         side="right" 
-        className="w-full sm:w-[420px] p-0 bg-gray-50 border-l border-gray-200 flex flex-col h-full"
+        className="w-full sm:w-[420px] p-0 bg-gray-50 border-l border-gray-200 flex flex-col h-full [&>button]:hidden"
       >
-        {/* Header - Fixed */}
+        {/* Header - Fixed with custom close button */}
         <SheetHeader className="flex-shrink-0 px-6 py-5 bg-white border-b border-gray-200 shadow-sm">
-          <SheetTitle className="text-xl font-bold text-gray-900 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between">
+            <SheetTitle className="text-xl font-bold text-gray-900 flex items-center gap-3">
               <div className="p-2 rounded-full bg-[#16a34a]/10">
                 <ShoppingBag className="h-5 w-5 text-[#16a34a]" />
               </div>
               Your Cart
-            </div>
-            {!isEmpty && (
-              <Badge variant="secondary" className="text-xs">
-                {itemCount} {itemCount === 1 ? 'item' : 'items'}
-              </Badge>
-            )}
-          </SheetTitle>
+            </SheetTitle>
+            
+            {/* Custom close button */}
+            <button
+              onClick={handleClose}
+              className="flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-all duration-150 active:scale-95 touch-manipulation focus:outline-none focus:ring-2 focus:ring-gray-300"
+              aria-label="Close cart"
+            >
+              <X className="h-5 w-5 text-gray-600" />
+            </button>
+          </div>
         </SheetHeader>
 
         {/* Main Content Area - Flexible */}

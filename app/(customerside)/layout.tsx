@@ -33,7 +33,9 @@ export default function RootLayout({
       <SessionProvider>
       <NavBar />
    
-      {children}
+   <main className="pb-20 lg:pb-0"> {/* Adds 20 units of padding-bottom on mobile, none on large screens */}
+          {children}
+        </main>
  
       <Footer />
       </SessionProvider>
