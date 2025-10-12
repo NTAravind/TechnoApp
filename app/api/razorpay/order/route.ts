@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { GetProductPrice } from "@/lib/productActions";
 import prisma from "@/lib/prisma";
 import crypto from "crypto";
-
+import { v4 as uuidv4 } from 'uuid';
 // Helper function to calculate order totals consistently
 function calculateOrderTotals(cartitems: any[], products: any[], isDistributor: boolean, delivery: boolean) {
   // Calculate subtotal
@@ -25,7 +25,7 @@ function calculateOrderTotals(cartitems: any[], products: any[], isDistributor: 
   const deliveryCharge = delivery ? subtotal * 0.08 : 0;
 
   // Calculate platform/service fee (4% on subtotal after discount)
-  const platformFee = subtotalAfterDiscount * 0.04;
+  const platformFee = delivery ? subtotalAfterDiscount * 0.04 : 0;
 
   // Calculate total amount
   const totalAmount = subtotalAfterDiscount + deliveryCharge + platformFee;
@@ -88,8 +88,8 @@ export async function POST(req: NextRequest) {
 
       // Handle pickup orders (delivery = false)
       if (!delivery) {
-        // Generate a custom order ID for pickup orders
-        const pickupOrderId = `pickup_${phoneno}_${Date.now()}`;
+  
+        const pickupOrderId =`pickup_${uuidv4()}`;
         
         // Create order directly in database for pickup
         const dbOrder = await prisma.order.create({
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
           id: razorpayOrder.id,
           customerId: customerId,
           paid: false,
-          paymentid: "",
+          paymentid: razorpayOrder.id, // Will be updated with payment ID upon completion
           delivered: delivery, // true for delivery, false for pickup
           complete: false,
           total: totals.totalAmount,

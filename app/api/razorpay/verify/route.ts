@@ -73,7 +73,7 @@ async function handleWebhook(req: NextRequest, body: any, rawBody: string) {
 
       await prisma.order.update({
         where: { id: payment.order_id },
-        data: { paid: true, paymentid: payment.id, complete: true },
+        data: { paid: true, paymentid: payment.id},
       });
 
       console.log(`✅ Order completed: ${payment.order_id}`);

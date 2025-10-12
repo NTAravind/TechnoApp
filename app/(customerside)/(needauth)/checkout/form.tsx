@@ -28,6 +28,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import DeliveryModeSelector from './del';
 import { createUser, updateUser } from './action';
 import { fcurrency } from '@/lib/utils';
+import { de } from 'zod/v4/locales';
 
 // Updated Product interface to match Prisma schema
 interface Product {
@@ -450,11 +451,12 @@ const PriceBreakdown = memo(function PriceBreakdown({ user, deliveryMode }: { us
     return deliveryMode ? subtotal * 0.08 : 0
   }, [deliveryMode, subtotal])
 
-  const platformFee = useMemo(() => {
-    return subtotalAfterDiscount * 0.04
-  }, [subtotalAfterDiscount])
+ const platformFee = useMemo(() => {
+    return deliveryMode ? subtotalAfterDiscount * 0.04 : 0
+  }, [deliveryMode, subtotalAfterDiscount])
 
   const total = subtotalAfterDiscount + deliveryCharge + platformFee
+  
   const isBulkOrder = subtotal > 50000
 
   return (
@@ -639,7 +641,7 @@ function PurchaseButton({
 
   const subtotalAfterDiscount = subtotal - distributorDiscount;
   const platformFee = useMemo(() => {
-    return subtotalAfterDiscount * 0.04;
+   return  del?(subtotalAfterDiscount * 0.04) : 0;
   }, [subtotalAfterDiscount]);
 
   const totalAmount = subtotalAfterDiscount + deliveryCharge + platformFee;

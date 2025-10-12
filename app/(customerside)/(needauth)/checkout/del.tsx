@@ -43,9 +43,7 @@ export default function DeliveryModeSelector({
             <div className="text-center">
               <div className="font-medium">Pick Up</div>
               <div className="text-sm text-muted-foreground">Collect from store</div>
-              <Badge variant="secondary" className="mt-2 text-xs">
-                Free
-              </Badge>
+         
             </div>
           </Label>
         </div>
@@ -65,9 +63,7 @@ export default function DeliveryModeSelector({
             <div className="text-center">
               <div className="font-medium">Delivery</div>
               <div className="text-sm text-muted-foreground">To your address</div>
-              <Badge variant="outline" className="mt-2 text-xs">
-                ₹60
-              </Badge>
+             
             </div>
           </Label>
         </div>
