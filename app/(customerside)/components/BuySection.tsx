@@ -45,20 +45,37 @@ export default function BuySection({ prop }: BuySectionProps) {
   }, [prop.id, getItemQuantity, prop.packaging])
 
   const handleQuantityIncrement = () => {
-    incrementQuantity(prop.id)
-    const newQuantity = getItemQuantity(prop.id)
-    setQuantity(newQuantity)
-    if (prop.packaging) {
-      setPackages(Math.floor(newQuantity / prop.packaging))
+    const currentQty = getItemQuantity(prop.id)
+    
+    if (currentQty === 0) {
+      // Item is not in cart yet, add it
+      const initialQty = prop.LooseSell ? 1 : (prop.packaging || 1)
+      AddProduct({ item: prop, qty: initialQty })
+      setQuantity(initialQty)
+      if (prop.packaging) {
+        setPackages(Math.floor(initialQty / prop.packaging))
+      }
+    } else {
+      // Item exists in cart, use increment function
+      incrementQuantity(prop.id)
+      const newQuantity = getItemQuantity(prop.id)
+      setQuantity(newQuantity)
+      if (prop.packaging) {
+        setPackages(Math.floor(newQuantity / prop.packaging))
+      }
     }
   }
 
   const handleQuantityDecrement = () => {
-    decrementQuantity(prop.id)
-    const newQuantity = getItemQuantity(prop.id)
-    setQuantity(newQuantity)
-    if (prop.packaging) {
-      setPackages(Math.floor(newQuantity / prop.packaging))
+    const currentQty = getItemQuantity(prop.id)
+    
+    if (currentQty > 0) {
+      decrementQuantity(prop.id)
+      const newQuantity = getItemQuantity(prop.id)
+      setQuantity(newQuantity)
+      if (prop.packaging) {
+        setPackages(Math.floor(newQuantity / prop.packaging))
+      }
     }
   }
 
@@ -69,7 +86,21 @@ export default function BuySection({ prop }: BuySectionProps) {
     const validQuantity = getValidQuantity(prop, newQuantity)
     
     setQuantity(validQuantity)
-    SetItemQuantity(prop.id, validQuantity)
+    
+    // Only update cart if quantity is valid
+    if (validQuantity > 0) {
+      const currentQty = getItemQuantity(prop.id)
+      if (currentQty === 0) {
+        // Item not in cart, add it
+        AddProduct({ item: prop, qty: validQuantity })
+      } else {
+        // Item in cart, update quantity
+        SetItemQuantity(prop.id, validQuantity)
+      }
+    } else {
+      // Remove from cart if quantity is 0
+      SetItemQuantity(prop.id, 0)
+    }
     
     if (prop.packaging) {
       setPackages(Math.floor(validQuantity / prop.packaging))
@@ -86,11 +117,19 @@ export default function BuySection({ prop }: BuySectionProps) {
 
   const handlePackageIncrement = () => {
     if (prop.packaging) {
-      const newPackages = packages + 1
+      const currentQty = getItemQuantity(prop.id)
+      const currentPackages = Math.floor(currentQty / prop.packaging)
+      const newPackages = currentPackages + 1
       const newQuantity = newPackages * prop.packaging
+      
+      if (currentQty === 0) {
+        AddProduct({ item: prop, qty: newQuantity })
+      } else {
+        SetItemQuantity(prop.id, newQuantity)
+      }
+      
       setPackages(newPackages)
       setQuantity(newQuantity)
-      SetItemQuantity(prop.id, newQuantity)
     }
   }
 
@@ -111,7 +150,17 @@ export default function BuySection({ prop }: BuySectionProps) {
       const newQuantity = newPackages * prop.packaging
       setPackages(newPackages)
       setQuantity(newQuantity)
-      SetItemQuantity(prop.id, newQuantity)
+      
+      if (newQuantity > 0) {
+        const currentQty = getItemQuantity(prop.id)
+        if (currentQty === 0) {
+          AddProduct({ item: prop, qty: newQuantity })
+        } else {
+          SetItemQuantity(prop.id, newQuantity)
+        }
+      } else {
+        SetItemQuantity(prop.id, 0)
+      }
     }
   }
 
@@ -123,7 +172,13 @@ export default function BuySection({ prop }: BuySectionProps) {
     
     setIsLoading(true)
     try {
-      AddProduct({ item: prop, qty: quantity })
+      // Ensure the item is in cart with correct quantity
+      const currentQty = getItemQuantity(prop.id)
+      if (currentQty === 0) {
+        AddProduct({ item: prop, qty: quantity })
+      } else if (currentQty !== quantity) {
+        SetItemQuantity(prop.id, quantity)
+      }
       router.push('/checkout')
     } catch (error) {
       toast('Something went wrong')
@@ -140,7 +195,13 @@ export default function BuySection({ prop }: BuySectionProps) {
     
     setIsLoading(true)
     try {
-      AddProduct({ item: prop, qty: quantity })
+      // Ensure the item is in cart with correct quantity
+      const currentQty = getItemQuantity(prop.id)
+      if (currentQty === 0) {
+        AddProduct({ item: prop, qty: quantity })
+      } else if (currentQty !== quantity) {
+        SetItemQuantity(prop.id, quantity)
+      }
       toast('Added to cart')
     } finally {
       setIsLoading(false)
