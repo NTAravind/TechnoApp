@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { 
@@ -34,11 +34,12 @@ import Image from 'next/image'
 // Dynamic imports to prevent SSR issues
 import dynamic from 'next/dynamic'
 
+// Note: Update your PushNotification component to accept onClose prop
 const NotificationSubscriptionPrompt = dynamic(
   () => import('@/app/(customerside)/components/PushNotification'),
   { 
     ssr: false,
-    loading: () => null // No loading state to avoid layout shift
+    loading: () => null
   }
 )
 
@@ -93,7 +94,7 @@ interface HomePageClientProps {
   getCategoryProductsCount: (categoryId: number) => Promise<number>
 }
 
-// Header Component - Updated with dropdown menu
+// Header Component
 const Header = ({ 
   customerName, 
   onNotificationClick,
@@ -182,12 +183,10 @@ const Header = ({
           )}
         </Button>
         
-        {/* Show notification dot only on client side */}
         {isClient && hasNotificationPrompt && !isNotificationSubscribed && (
           <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
         )}
         
-        {/* Show active indicator for subscribed users only on client side */}
         {isClient && isNotificationSubscribed && (
           <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
         )}
@@ -255,7 +254,7 @@ const QuickStats = ({ stats }: { stats: Stats }) => {
   )
 }
 
-// Categories Grid Component - Fixed image loading
+// Categories Grid Component
 const CategoriesGrid = ({ 
   categories, 
   onCategoryClick 
@@ -296,7 +295,6 @@ const CategoriesGrid = ({
                       sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                       priority={category.id <= 4}
                       onError={(e) => {
-                        // Fallback to placeholder if image fails to load
                         const target = e.target as HTMLImageElement
                         target.style.display = 'none'
                       }}
@@ -472,8 +470,6 @@ const RecentOrders = ({
     </div>
   )
 }
-
-// Main Client Component - Updated to show notification prompt automatically
 export function HomePageClient({
   customerName,
   customerId,
@@ -488,13 +484,12 @@ export function HomePageClient({
   const [isClient, setIsClient] = useState(false)
   const [hasNotificationPrompt, setHasNotificationPrompt] = useState(false)
   const [isNotificationSubscribed, setIsNotificationSubscribed] = useState(false)
+  const [showNotificationModal, setShowNotificationModal] = useState(false)
 
-  // Handle client-side hydration
   useEffect(() => {
     setIsClient(true)
   }, [])
 
-  // Check notification status and set prompt visibility
   useEffect(() => {
     if (!isClient) return
 
@@ -509,12 +504,13 @@ export function HomePageClient({
           
           setIsNotificationSubscribed(!!existingSub)
           
-          // Show prompt if not subscribed, permission not denied, and not permanently dismissed
           const shouldShowPrompt = !existingSub && 
             Notification.permission !== 'denied' && 
             localStorage.getItem('notification-prompt-permanently-dismissed') !== 'true'
           
           setHasNotificationPrompt(shouldShowPrompt)
+          
+          // REMOVED: Auto-show modal - only show when user clicks bell icon
         } catch (error) {
           console.error('Error checking notification status:', error)
           setHasNotificationPrompt(false)
@@ -526,8 +522,42 @@ export function HomePageClient({
 
     checkNotificationStatus()
   }, [isClient])
+// Inside HomePageClient (the big component you posted first)
 
-  // Add custom CSS for styling
+useEffect(() => {
+  if (!isClient) return;
+
+  const checkNotificationStatus = async () => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      try {
+        const registration = await navigator.serviceWorker.register('/sw.js', {
+          scope: '/',
+          updateViaCache: 'none',
+        });
+        const existingSub = await registration.pushManager.getSubscription();
+
+        const subscribed = !!existingSub;
+        setIsNotificationSubscribed(subscribed);
+        setHasNotificationPrompt(!subscribed && Notification.permission !== 'denied' &&
+          localStorage.getItem('notification-prompt-permanently-dismissed') !== 'true');
+
+        // NEW: auto-open the modal if the user is NOT subscribed
+        if (!subscribed && Notification.permission !== 'denied' &&
+            localStorage.getItem('notification-prompt-permanently-dismissed') !== 'true') {
+          setShowNotificationModal(true);
+        }
+
+      } catch (error) {
+        console.error('Error checking notification status:', error);
+        setHasNotificationPrompt(false);
+      }
+    } else {
+      setHasNotificationPrompt(false);
+    }
+  };
+
+  checkNotificationStatus();
+}, [isClient]);
   useEffect(() => {
     if (!isClient) return
 
@@ -555,21 +585,41 @@ export function HomePageClient({
     }
   }, [isClient])
 
-  // Navigation handlers
   const handleNotificationClick = () => {
-    // Show unsubscribe confirmation if subscribed, otherwise do nothing as prompt is handled automatically
-    if (isNotificationSubscribed) {
-      if (typeof window !== 'undefined' && (window as any).showNotificationPrompt) {
-        (window as any).showNotificationPrompt()
-      }
-    }
+    console.log('Bell icon clicked, current subscription:', isNotificationSubscribed)
+    setShowNotificationModal(true)
   }
 
-  const handleSubscriptionChange = (subscribed: boolean) => {
+  const handleSubscriptionChange = useCallback((subscribed: boolean) => {
+    console.log('Subscription changed:', subscribed)
     setIsNotificationSubscribed(subscribed)
     setHasNotificationPrompt(!subscribed && Notification.permission !== 'denied' && 
       localStorage.getItem('notification-prompt-permanently-dismissed') !== 'true')
-  }
+  }, [])
+
+  const handleModalClose = useCallback(() => {
+    console.log('Modal closed')
+    setShowNotificationModal(false)
+    
+    // Re-check subscription status after modal closes
+    setTimeout(async () => {
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        try {
+          const registration = await navigator.serviceWorker.ready
+          const existingSub = await registration.pushManager.getSubscription()
+          setIsNotificationSubscribed(!!existingSub)
+          
+          // Update the prompt status but DON'T automatically reopen the modal
+          const shouldShowPrompt = !existingSub && 
+            Notification.permission !== 'denied' && 
+            localStorage.getItem('notification-prompt-permanently-dismissed') !== 'true'
+          setHasNotificationPrompt(shouldShowPrompt)
+        } catch (error) {
+          console.error('Error checking subscription after close:', error)
+        }
+      }
+    }, 100)
+  }, [])
 
   const handleCategoryClick = (categoryId: number) => {
     if (categoryId === 0) {
@@ -622,15 +672,15 @@ export function HomePageClient({
         onViewAllOrders={handleViewAllOrders}
       />
 
-      {/* Notification Prompt - render on client side when unsubscribed */}
-      {isClient && hasNotificationPrompt && !isNotificationSubscribed && (
+      {/* Notification Modal - Always render when modal should be shown */}
+      {isClient && showNotificationModal && (
         <NotificationSubscriptionPrompt 
           customerId={customerId}
           onSubscriptionChange={handleSubscriptionChange}
+          onClose={handleModalClose}
         />
       )}
 
-      {/* Bottom spacing for mobile navigation */}
       <div className="pb-24" />
     </div>
   )

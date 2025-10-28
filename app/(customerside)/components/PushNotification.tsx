@@ -9,7 +9,6 @@ import {
   type PushSubscriptionData 
 } from '@/lib/notifications'
 
-// Utility function to convert VAPID key with proper typing
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   try {
     const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -25,7 +24,6 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   }
 }
 
-// Convert PushSubscription to our data format with null checks and safe string conversion
 function serializePushSubscription(subscription: PushSubscription): PushSubscriptionData {
   const p256dh = subscription.getKey('p256dh')
   const auth = subscription.getKey('auth')
@@ -48,20 +46,20 @@ function serializePushSubscription(subscription: PushSubscription): PushSubscrip
 interface NotificationSubscriptionPromptProps {
   customerId: string
   onSubscriptionChange?: (isSubscribed: boolean) => void
+  onClose?: () => void
 }
 
 export default function NotificationSubscriptionPrompt({ 
   customerId, 
-  onSubscriptionChange 
+  onSubscriptionChange,
+  onClose
 }: NotificationSubscriptionPromptProps) {
   const [isSupported, setIsSupported] = useState(false)
   const [subscription, setSubscription] = useState<PushSubscription | null>(null)
   const [isSubscribed, setIsSubscribed] = useState(false)
-  const [showPrompt, setShowPrompt] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [notification, setNotification] = useState<{ type: string; message: string }>({ type: '', message: '' })
   const [permissionState, setPermissionState] = useState<NotificationPermission>('default')
-  const [showUnsubscribeConfirm, setShowUnsubscribeConfirm] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   
   const notificationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -85,39 +83,42 @@ export default function NotificationSubscriptionPrompt({
     }
   }, [isSubscribed, onSubscriptionChange, isInitialized])
 
-  // Simple function to check if we should show prompt (only check permanent dismissal)
-  const canShowPrompt = useCallback(() => {
-    const permanentDismissal = localStorage.getItem('notification-prompt-permanently-dismissed')
-    return permanentDismissal !== 'true'
-  }, [])
-
-  // Show prompt immediately when conditions are met - UPDATED
-  const showPromptForUnsubscribed = useCallback(() => {
-    if (isSubscribed || !isSupported || !canShowPrompt()) {
-      return
-    }
-
-    // Show prompt IMMEDIATELY - no delay
-    if (!isSubscribed && canShowPrompt()) {
-      setShowPrompt(true)
-    }
-  }, [isSubscribed, isSupported, canShowPrompt])
-
   useEffect(() => {
     let isMounted = true
     
     const initialize = async () => {
       try {
-        await checkSupport()
-        if (isMounted) {
-          await checkExistingSubscription()
+        if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) {
+          setIsSupported(true)
+          setPermissionState(Notification.permission)
+          
+          if (isMounted) {
+            const registration = await navigator.serviceWorker.ready
+            const existingSub = await registration.pushManager.getSubscription()
+            
+            if (existingSub) {
+              const serializedSub = serializePushSubscription(existingSub)
+              const result = await checkSubscriptionExists(serializedSub.endpoint)
+              
+              if (result.success && result.exists) {
+                setSubscription(existingSub)
+                setIsSubscribed(true)
+                setPermissionState('granted')
+              } else {
+                await existingSub.unsubscribe()
+                setSubscription(null)
+                setIsSubscribed(false)
+              }
+            }
+            setIsInitialized(true)
+          }
+        } else {
           setIsInitialized(true)
         }
       } catch (error) {
         console.error('Error initializing notifications:', error)
         if (isMounted) {
           setIsInitialized(true)
-          showNotification('error', 'Failed to initialize notifications')
         }
       }
     }
@@ -130,59 +131,15 @@ export default function NotificationSubscriptionPrompt({
         clearTimeout(notificationTimeoutRef.current)
       }
     }
-  }, [customerId, showNotification])
-
-  // Show prompt IMMEDIATELY when component is ready and user is unsubscribed - UPDATED
-  useEffect(() => {
-    if (isInitialized && !isSubscribed) {
-      // Use requestAnimationFrame to ensure DOM is ready, but still immediate to user
-      requestAnimationFrame(() => {
-        showPromptForUnsubscribed()
-      })
-    }
-  }, [isInitialized, isSubscribed, showPromptForUnsubscribed])
-
-  const checkSupport = async (): Promise<void> => {
-    return new Promise((resolve) => {
-      if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) {
-        setIsSupported(true)
-        setPermissionState(Notification.permission)
-      } else {
-        console.warn('Push notifications not supported in this browser/TWA')
-      }
-      resolve()
-    })
-  }
-
-  const checkExistingSubscription = async (): Promise<void> => {
-    if (!isSupported) return
-
-    try {
-      const registration = await navigator.serviceWorker.ready
-      const existingSub = await registration.pushManager.getSubscription()
-      
-      if (existingSub) {
-        const serializedSub = serializePushSubscription(existingSub)
-        const result = await checkSubscriptionExists(serializedSub.endpoint)
-        
-        if (result.success && result.exists) {
-          setSubscription(existingSub)
-          setIsSubscribed(true)
-          setShowPrompt(false)
-          setPermissionState('granted')
-        } else {
-          await existingSub.unsubscribe()
-          setSubscription(null)
-          setIsSubscribed(false)
-        }
-      }
-    } catch (error) {
-      console.error('Error checking subscription:', error)
-    }
-  }
+  }, [])
 
   const handleSubscribe = async (): Promise<void> => {
-    if (!isSupported || isLoading || isProcessingRef.current || permissionState === 'denied') return
+    if (!isSupported || isLoading || isProcessingRef.current || permissionState === 'denied') {
+      if (permissionState === 'denied') {
+        showNotification('error', 'Notifications are blocked. Please enable them in your browser settings.', 6000)
+      }
+      return
+    }
 
     isProcessingRef.current = true
     setIsLoading(true)
@@ -192,7 +149,7 @@ export default function NotificationSubscriptionPrompt({
       setPermissionState(permission)
       
       if (permission !== 'granted') {
-        showNotification('error', 'Please enable notifications in your app settings to receive order updates.', 6000)
+        showNotification('error', 'Please enable notifications in your browser settings to receive order updates.', 6000)
         return
       }
 
@@ -205,24 +162,10 @@ export default function NotificationSubscriptionPrompt({
 
       const applicationServerKey = urlBase64ToUint8Array(vapidKey)
       
-      let newSubscription: PushSubscription | null = null
-      let attempts = 0
-      const maxAttempts = 3
-
-      while (attempts < maxAttempts && !newSubscription) {
-        try {
-          newSubscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey,
-          })
-        } catch (error) {
-          attempts++
-          if (attempts === maxAttempts) {
-            throw error
-          }
-          await new Promise(resolve => setTimeout(resolve, 1000))
-        }
-      }
+      const newSubscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      })
 
       if (!newSubscription) {
         throw new Error('Failed to create push subscription')
@@ -234,13 +177,10 @@ export default function NotificationSubscriptionPrompt({
       if (result.success) {
         setSubscription(newSubscription)
         setIsSubscribed(true)
-        setShowPrompt(false)
         showNotification('success', 'Successfully subscribed to order notifications!')
         
-        // Clear permanent dismissal when successfully subscribed
         localStorage.removeItem('notification-prompt-permanently-dismissed')
         
-        // Welcome notification
         if (Notification.permission === 'granted') {
           new Notification('Notifications Enabled!', {
             body: 'You\'ll now receive updates about your orders.',
@@ -248,6 +188,9 @@ export default function NotificationSubscriptionPrompt({
             badge: '/badge-72x72.png'
           })
         }
+        
+        // FIXED: Close immediately instead of waiting 2 seconds
+        onClose?.()
       } else {
         const errorMsg = !result.success && 'error' in result ? result.error : 'Failed to save subscription'
         throw new Error(errorMsg)
@@ -257,8 +200,8 @@ export default function NotificationSubscriptionPrompt({
       const errorMessage = error instanceof Error 
         ? error.message === 'VAPID key not configured'
           ? 'Notification service is not properly configured. Please contact support.'
-          : error.message.includes('permission denied')
-          ? 'Notification permission was denied. Please enable in app settings.'
+          : error.message.includes('permission')
+          ? 'Notification permission was denied. Please enable in browser settings.'
           : 'Failed to subscribe to notifications. Please try again.'
         : 'An unexpected error occurred.'
       
@@ -283,7 +226,6 @@ export default function NotificationSubscriptionPrompt({
 
     isProcessingRef.current = true
     setIsLoading(true)
-    setShowUnsubscribeConfirm(false)
     
     try {
       const serializedSub = serializePushSubscription(subscription)
@@ -295,13 +237,10 @@ export default function NotificationSubscriptionPrompt({
         setIsSubscribed(false)
         showNotification('success', 'Successfully unsubscribed from notifications.')
         
-        // Reset permanent dismissal to allow showing prompts again
         localStorage.removeItem('notification-prompt-permanently-dismissed')
         
-        // Show prompt immediately for the newly unsubscribed user
-        requestAnimationFrame(() => {
-          showPromptForUnsubscribed()
-        })
+        // FIXED: Close immediately instead of waiting 2 seconds
+        onClose?.()
       } else {
         const errorMsg = !result.success && 'error' in result ? result.error : 'Failed to remove subscription'
         throw new Error(errorMsg)
@@ -330,40 +269,11 @@ export default function NotificationSubscriptionPrompt({
   }
 
   const dismissPrompt = useCallback((permanent = false) => {
-    setShowPrompt(false)
-    
     if (permanent) {
-      // Permanently dismiss - won't show again until they unsubscribe/resubscribe
       localStorage.setItem('notification-prompt-permanently-dismissed', 'true')
     }
-  }, [])
-
-  useEffect(() => {
-    if (isSubscribed) {
-      setShowPrompt(false)
-      setShowUnsubscribeConfirm(false)
-    }
-  }, [isSubscribed])
-
-  useEffect(() => {
-    const handleExternalTrigger = () => {
-      if (isSubscribed) {
-        setShowUnsubscribeConfirm(true)
-      } else if (canShowPrompt()) {
-        setShowPrompt(true)
-      }
-    }
-
-    if (typeof window !== 'undefined') {
-      ;(window as any).showNotificationPrompt = handleExternalTrigger
-    }
-
-    return () => {
-      if (typeof window !== 'undefined') {
-        delete (window as any).showNotificationPrompt
-      }
-    }
-  }, [isSubscribed, canShowPrompt])
+    onClose?.()
+  }, [onClose])
 
   if (!isSupported || !isInitialized) {
     return null
@@ -371,9 +281,10 @@ export default function NotificationSubscriptionPrompt({
 
   return (
     <>
+      {/* Notification Toast */}
       {notification.message && (
         <div 
-          className={`fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg border transition-all duration-300 animate-in slide-in-from-right ${
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] max-w-sm p-4 rounded-lg shadow-lg border transition-all duration-300 animate-in slide-in-from-top ${
             notification.type === 'success'
               ? 'bg-green-50 border-green-200 text-green-900'
               : 'bg-red-50 border-red-200 text-red-900'
@@ -401,144 +312,143 @@ export default function NotificationSubscriptionPrompt({
         </div>
       )}
 
-      {showPrompt && !isSubscribed && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="notification-prompt-title"
-        >
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-in fade-in-0 zoom-in-95 duration-300">
-            <button
-              onClick={() => dismissPrompt(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors rounded-full p-1 hover:bg-gray-100"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            
-            <div className="text-center">
-              <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                <Bell className="h-8 w-8 text-primary" />
-              </div>
-              
-              <h3 id="notification-prompt-title" className="text-xl font-semibold text-gray-900 mb-2">
-                Stay Updated on Your Orders
-              </h3>
-              
-              <p className="text-gray-600 mb-6 leading-6">
-                Get real-time updates about your order status, delivery information, and exclusive offers directly to your device.
-              </p>
-              
-              <div className="space-y-3 mb-6 text-left">
-                <div className="flex items-center gap-3 text-sm text-gray-700">
-                  <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
-                  <span>Order confirmation & status updates</span>
+      {/* Main Modal */}
+      <div 
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose?.()
+          }
+        }}
+      >
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-in fade-in-0 zoom-in-95 duration-300">
+          <button
+            onClick={() => onClose?.()}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors rounded-full p-1 hover:bg-gray-100"
+            aria-label="Close"
+            disabled={isLoading}
+          >
+            <X className="h-5 w-5" />
+          </button>
+          
+          <div className="text-center">
+            {/* Show Subscribe UI when not subscribed */}
+            {!isSubscribed && (
+              <>
+                <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                  <Bell className="h-8 w-8 text-primary" />
                 </div>
-                <div className="flex items-center gap-3 text-sm text-gray-700">
-                  <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
-                  <span>Delivery tracking notifications</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm text-gray-700">
-                  <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
-                  <span>Exclusive deals & promotions</span>
-                </div>
-              </div>
-              
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={handleSubscribe}
-                  disabled={isLoading}
-                  className="w-full px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Bell className="h-4 w-4" />
-                      Enable Notifications
-                    </>
-                  )}
-                </button>
                 
-                <div className="flex gap-2">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  Stay Updated on Your Orders
+                </h3>
+                
+                <p className="text-gray-600 mb-6 leading-6">
+                  Get real-time updates about your order status, delivery information, and exclusive offers directly to your device.
+                </p>
+                
+                <div className="space-y-3 mb-6 text-left">
+                  <div className="flex items-center gap-3 text-sm text-gray-700">
+                    <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
+                    <span>Order confirmation & status updates</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-700">
+                    <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
+                    <span>Delivery tracking notifications</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-700">
+                    <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
+                    <span>Exclusive deals & promotions</span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col gap-3">
                   <button
-                    onClick={() => dismissPrompt(false)}
-                    className="flex-1 px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                    onClick={handleSubscribe}
+                    disabled={isLoading}
+                    className="w-full px-4 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Enabling...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Bell className="h-4 w-4" />
+                        Enable Notifications
+                      </>
+                    )}
+                  </button>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => dismissPrompt(false)}
+                      className="flex-1 px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                      disabled={isLoading}
+                    >
+                      Not now
+                    </button>
+                    <button
+                      onClick={() => dismissPrompt(true)}
+                      className="flex-1 px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                      disabled={isLoading}
+                    >
+                      Don't ask again
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Show Unsubscribe UI when subscribed */}
+            {isSubscribed && (
+              <>
+                <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                  <BellOff className="h-8 w-8 text-red-600" />
+                </div>
+                
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  Unsubscribe from Notifications?
+                </h3>
+                
+                <p className="text-gray-600 mb-6 leading-6">
+                  You'll no longer receive order updates, delivery notifications, and special offers. You can always resubscribe later.
+                </p>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => onClose?.()}
+                    className="flex-1 px-4 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium"
                     disabled={isLoading}
                   >
-                    Not now
+                    Keep Notifications
                   </button>
                   <button
-                    onClick={() => dismissPrompt(true)}
-                    className="flex-1 px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                    onClick={handleUnsubscribe}
                     disabled={isLoading}
+                    className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    Don't ask again
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Unsubscribing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <BellOff className="h-4 w-4" />
+                        Unsubscribe
+                      </>
+                    )}
                   </button>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         </div>
-      )}
-
-      {showUnsubscribeConfirm && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="unsubscribe-title"
-        >
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-in fade-in-0 zoom-in-95 duration-300">
-            <button
-              onClick={() => setShowUnsubscribeConfirm(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors rounded-full p-1 hover:bg-gray-100"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            
-            <div className="text-center">
-              <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                <BellOff className="h-8 w-8 text-red-600" />
-              </div>
-              
-              <h3 id="unsubscribe-title" className="text-xl font-semibold text-gray-900 mb-2">
-                Unsubscribe from Notifications?
-              </h3>
-              
-              <p className="text-gray-600 mb-6 leading-6">
-                You'll no longer receive order updates, delivery notifications, and special offers. You can always resubscribe later from your account settings.
-              </p>
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowUnsubscribeConfirm(false)}
-                  className="flex-1 px-4 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium"
-                  disabled={isLoading}
-                >
-                  Keep Notifications
-                </button>
-                <button
-                  onClick={handleUnsubscribe}
-                  disabled={isLoading}
-                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <BellOff className="h-4 w-4" />
-                      Unsubscribe
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </>
   )
 }
