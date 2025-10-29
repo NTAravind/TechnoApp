@@ -135,10 +135,16 @@ export default function NotificationSubscriptionPrompt({
   }, [])
 
   const handleSubscribe = async (): Promise<void> => {
-    if (!isSupported || isLoading || isProcessingRef.current || permissionState === 'denied') {
-      if (permissionState === 'denied') {
-        showNotification('error', 'Notifications are blocked. Please enable them in your browser settings.', 6000)
-      }
+    if (!isSupported || isLoading || isProcessingRef.current) {
+      return
+    }
+
+    // Check current browser permission state first
+    const currentPermission = Notification.permission
+    setPermissionState(currentPermission)
+    
+    if (currentPermission === 'denied') {
+      showNotification('error', 'Notifications are blocked. Please enable them in your browser settings.', 6000)
       return
     }
 
@@ -146,7 +152,11 @@ export default function NotificationSubscriptionPrompt({
     setIsLoading(true)
     
     try {
-      const permission = await Notification.requestPermission()
+      // Request permission if not already granted
+      const permission = currentPermission === 'granted' 
+        ? currentPermission 
+        : await Notification.requestPermission()
+      
       setPermissionState(permission)
       
       if (permission !== 'granted') {
@@ -272,7 +282,7 @@ export default function NotificationSubscriptionPrompt({
       
       showNotification('error', errorMessage)
       
-      // Cleanup local state even if server call failed
+      // Cleanup local state even if server call 
       try {
         if (subscription) {
           await subscription.unsubscribe()
