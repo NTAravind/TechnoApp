@@ -3,8 +3,6 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 
-
-
 export interface PushSubscriptionData {
   endpoint: string
   keys: {
@@ -87,6 +85,26 @@ export async function unsubscribeUserFromPushNotifications(
   } 
 }
 
+export async function unsubscribeAllCustomerSubscriptions(customerId: string) {
+  try {
+    // Validate input
+    if (!customerId) {
+      return { success: false, error: 'Invalid customer ID' }
+    }
+
+    // Delete all subscriptions for this customer
+    const result = await prisma.pushSubscription.deleteMany({
+      where: { customerId }
+    })
+
+    revalidatePath('/')
+    return { success: true, count: result.count }
+  } catch (error) {
+    console.error('Error unsubscribing all customer subscriptions:', error)
+    return { success: false, error: 'Failed to remove subscriptions' }
+  }
+}
+
 export async function getCustomerSubscriptionByPhone(customerPhone: string) {
   try {
     // Validate input
@@ -111,6 +129,24 @@ export async function getCustomerSubscriptionByPhone(customerPhone: string) {
     console.error('Error fetching customer subscription:', error)
     return { success: false, error: 'Failed to fetch subscription' }
   } 
+}
+
+export async function getAllCustomerSubscriptions(customerId: string) {
+  try {
+    // Validate input
+    if (!customerId) {
+      return { success: false, error: 'Invalid customer ID' }
+    }
+
+    const subscriptions = await prisma.pushSubscription.findMany({
+      where: { customerId }
+    })
+
+    return { success: true, subscriptions }
+  } catch (error) {
+    console.error('Error fetching customer subscriptions:', error)
+    return { success: false, error: 'Failed to fetch subscriptions' }
+  }
 }
 
 export async function checkSubscriptionExists(endpoint: string) {
