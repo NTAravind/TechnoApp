@@ -134,10 +134,14 @@ export default function NotificationSubscriptionPrompt({
   }, [])
 
   const handleSubscribe = async (): Promise<void> => {
-    if (!isSupported || isLoading || isProcessingRef.current || permissionState === 'denied') {
-      if (permissionState === 'denied') {
-        showNotification('error', 'Notifications are blocked. Please enable them in your browser settings.', 6000)
-      }
+    if (!isSupported || isLoading || isProcessingRef.current) {
+      return
+    }
+
+    // Check current permission state from browser
+    const currentPermission = Notification.permission
+    if (currentPermission === 'denied') {
+      showNotification('error', 'Notifications are blocked. Please enable them in your browser settings.', 6000)
       return
     }
 
@@ -145,7 +149,10 @@ export default function NotificationSubscriptionPrompt({
     setIsLoading(true)
     
     try {
-      const permission = await Notification.requestPermission()
+      // Request permission if not already granted
+      const permission = currentPermission === 'granted' 
+        ? currentPermission 
+        : await Notification.requestPermission()
       setPermissionState(permission)
       
       if (permission !== 'granted') {
@@ -189,7 +196,6 @@ export default function NotificationSubscriptionPrompt({
           })
         }
         
-        // FIXED: Close immediately instead of waiting 2 seconds
         onClose?.()
       } else {
         const errorMsg = !result.success && 'error' in result ? result.error : 'Failed to save subscription'
@@ -235,11 +241,12 @@ export default function NotificationSubscriptionPrompt({
         await subscription.unsubscribe()
         setSubscription(null)
         setIsSubscribed(false)
+        // Update permission state to reflect browser state
+        setPermissionState(Notification.permission)
         showNotification('success', 'Successfully unsubscribed from notifications.')
         
         localStorage.removeItem('notification-prompt-permanently-dismissed')
         
-        // FIXED: Close immediately instead of waiting 2 seconds
         onClose?.()
       } else {
         const errorMsg = !result.success && 'error' in result ? result.error : 'Failed to remove subscription'
@@ -259,6 +266,7 @@ export default function NotificationSubscriptionPrompt({
         }
         setSubscription(null)
         setIsSubscribed(false)
+        setPermissionState(Notification.permission)
       } catch (localError) {
         console.error('Local unsubscribe failed:', localError)
       }
