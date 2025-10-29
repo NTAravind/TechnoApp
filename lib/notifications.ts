@@ -1,9 +1,9 @@
 'use server'
 
-import { PrismaClient } from '@/app/generated/prisma'
+import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 
-const prisma = new PrismaClient()
+
 
 export interface PushSubscriptionData {
   endpoint: string
@@ -60,9 +60,7 @@ export async function subscribeUserToPushNotifications(
   } catch (error) {
     console.error('Error subscribing user to push notifications:', error)
     return { success: false, error: 'Failed to save subscription to database' }
-  } finally {
-    await prisma.$disconnect()
-  }
+  } 
 }
 
 export async function unsubscribeUserFromPushNotifications(
@@ -86,9 +84,7 @@ export async function unsubscribeUserFromPushNotifications(
   } catch (error) {
     console.error('Error unsubscribing user from push notifications:', error)
     return { success: false, error: 'Failed to remove subscription from database' }
-  } finally {
-    await prisma.$disconnect()
-  }
+  } 
 }
 
 export async function getCustomerSubscriptionByPhone(customerPhone: string) {
@@ -114,9 +110,7 @@ export async function getCustomerSubscriptionByPhone(customerPhone: string) {
   } catch (error) {
     console.error('Error fetching customer subscription:', error)
     return { success: false, error: 'Failed to fetch subscription' }
-  } finally {
-    await prisma.$disconnect()
-  }
+  } 
 }
 
 export async function checkSubscriptionExists(endpoint: string) {
@@ -134,7 +128,5 @@ export async function checkSubscriptionExists(endpoint: string) {
   } catch (error) {
     console.error('Error checking subscription:', error)
     return { success: false, error: 'Failed to check subscription' }
-  } finally {
-    await prisma.$disconnect()
-  }
+  } 
 }
