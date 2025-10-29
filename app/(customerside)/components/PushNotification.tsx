@@ -282,7 +282,7 @@ export default function NotificationSubscriptionPrompt({
       
       showNotification('error', errorMessage)
       
-      // Cleanup local state even if server call 
+      // Cleanup local state even if server call failed
       try {
         if (subscription) {
           await subscription.unsubscribe()
