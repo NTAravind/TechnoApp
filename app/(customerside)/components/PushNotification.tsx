@@ -162,6 +162,18 @@ export default function NotificationSubscriptionPrompt({
 
       const registration = await navigator.serviceWorker.ready
       
+      // CRITICAL FIX: Clear any existing subscription first before creating a new one
+      const existingSubscription = await registration.pushManager.getSubscription()
+      if (existingSubscription) {
+        console.log('Found existing subscription, unsubscribing first...')
+        try {
+          await existingSubscription.unsubscribe()
+        } catch (unsubError) {
+          console.warn('Error unsubscribing existing subscription:', unsubError)
+          // Continue anyway, the subscribe call might override it
+        }
+      }
+      
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       if (!vapidKey) {
         throw new Error('VAPID key not configured')
@@ -169,6 +181,7 @@ export default function NotificationSubscriptionPrompt({
 
       const applicationServerKey = urlBase64ToUint8Array(vapidKey)
       
+      // Now create a fresh subscription
       const newSubscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey,
@@ -213,13 +226,17 @@ export default function NotificationSubscriptionPrompt({
       
       showNotification('error', errorMessage, 5000)
       
-      if (subscription) {
-        try {
-          await subscription.unsubscribe()
-          setSubscription(null)
-        } catch (cleanupError) {
-          console.error('Error cleaning up subscription:', cleanupError)
+      // Clean up any partial subscription
+      try {
+        const registration = await navigator.serviceWorker.ready
+        const existingSubscription = await registration.pushManager.getSubscription()
+        if (existingSubscription) {
+          await existingSubscription.unsubscribe()
         }
+        setSubscription(null)
+        setIsSubscribed(false)
+      } catch (cleanupError) {
+        console.error('Error cleaning up subscription:', cleanupError)
       }
     } finally {
       setIsLoading(false)
@@ -235,13 +252,23 @@ export default function NotificationSubscriptionPrompt({
     
     try {
       const serializedSub = serializePushSubscription(subscription)
+      
+      // First unsubscribe from the server
       const result = await unsubscribeUserFromPushNotifications(serializedSub)
       
       if (result.success) {
+        // Then unsubscribe from the browser
         await subscription.unsubscribe()
+        
+        // Double-check and clear any remaining subscription
+        const registration = await navigator.serviceWorker.ready
+        const remainingSubscription = await registration.pushManager.getSubscription()
+        if (remainingSubscription) {
+          await remainingSubscription.unsubscribe()
+        }
+        
         setSubscription(null)
         setIsSubscribed(false)
-        // Update permission state to reflect browser state
         setPermissionState(Notification.permission)
         showNotification('success', 'Successfully unsubscribed from notifications.')
         
@@ -260,9 +287,15 @@ export default function NotificationSubscriptionPrompt({
       
       showNotification('error', errorMessage)
       
+      // Force cleanup locally even if server call failed
       try {
         if (subscription) {
           await subscription.unsubscribe()
+        }
+        const registration = await navigator.serviceWorker.ready
+        const existingSubscription = await registration.pushManager.getSubscription()
+        if (existingSubscription) {
+          await existingSubscription.unsubscribe()
         }
         setSubscription(null)
         setIsSubscribed(false)
