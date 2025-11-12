@@ -41,7 +41,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export type Order = {
-  id: string
+  id: string // UUID string, not number
   customerId: number
   paid: boolean
   paymentid: string
@@ -66,8 +66,8 @@ export type Order = {
     }
   }>
   total: number
-  createdAt: Date
-  updatedAt: Date
+  createdAt: Date | string // Allow both Date objects and ISO strings
+  updatedAt: Date | string
 }
 
 interface OrdersTableProps {
@@ -75,7 +75,9 @@ interface OrdersTableProps {
 }
 
 export function OrdersTable({ data }: OrdersTableProps) {
-  const [sorting, setSorting] = React.useState<SortingState>([])
+  const [sorting, setSorting] = React.useState<SortingState>([
+    { id: 'createdAt', desc: true } // Sort by newest first
+  ])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
@@ -118,10 +120,11 @@ export function OrdersTable({ data }: OrdersTableProps) {
       ),
     },
     {
-      accessorKey: 'customer',
+      accessorKey: 'customer.name',
+      id: 'customerName',
       header: 'Customer',
       cell: ({ row }) => {
-        const customer = row.getValue('customer') as Order['customer']
+        const customer = row.original.customer
         return (
           <div>
             <div className="flex items-center gap-2">
@@ -135,6 +138,9 @@ export function OrdersTable({ data }: OrdersTableProps) {
             <div className="text-sm text-muted-foreground">{customer.phone}</div>
           </div>
         )
+      },
+      filterFn: (row, id, value) => {
+        return row.original.customer.name.toLowerCase().includes(value.toLowerCase())
       },
     },
     {
@@ -169,6 +175,7 @@ export function OrdersTable({ data }: OrdersTableProps) {
     },
     {
       accessorKey: 'paid',
+      id: 'paid',
       header: 'Payment',
       cell: ({ row }) => {
         const paid = row.getValue('paid') as boolean
@@ -183,12 +190,17 @@ export function OrdersTable({ data }: OrdersTableProps) {
           </div>
         )
       },
+      filterFn: (row, id, value) => {
+        if (value === undefined) return true
+        return row.getValue('paid') === value
+      },
     },
     {
       id: 'fulfillmentType',
+      accessorFn: (row) => row.delivered,
       header: 'Type',
       cell: ({ row }) => {
-        const { delivered } = row.original
+        const delivered = row.original.delivered
         return (
           <div className="flex items-center gap-1">
             {delivered ? (
@@ -205,13 +217,17 @@ export function OrdersTable({ data }: OrdersTableProps) {
           </div>
         )
       },
+      filterFn: (row, id, value) => {
+        if (value === undefined) return true
+        return row.original.delivered === value
+      },
     },
     {
       id: 'status',
+      accessorFn: (row) => row.complete,
       header: 'Status',
-      accessorKey: 'complete',
       cell: ({ row }) => {
-        const { complete } = row.original
+        const complete = row.original.complete
         if (complete) {
           return (
             <Badge variant="default" className="bg-green-500">
@@ -228,6 +244,10 @@ export function OrdersTable({ data }: OrdersTableProps) {
           )
         }
       },
+      filterFn: (row, id, value) => {
+        if (value === undefined) return true
+        return row.original.complete === value
+      },
     },
     {
       accessorKey: 'createdAt',
@@ -243,15 +263,21 @@ export function OrdersTable({ data }: OrdersTableProps) {
         )
       },
       cell: ({ row }) => {
-        const date = new Date(row.getValue('createdAt'))
+        const dateValue = row.getValue('createdAt')
+        const date = new Date(dateValue as string | Date)
         return (
           <div>
-            <div>{date.toLocaleDateString()}</div>
+            <div>{date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
             <div className="text-sm text-muted-foreground">
-              {date.toLocaleTimeString()}
+              {date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
         )
+      },
+      sortingFn: (rowA, rowB) => {
+        const dateA = new Date(rowA.original.createdAt).getTime()
+        const dateB = new Date(rowB.original.createdAt).getTime()
+        return dateA - dateB
       },
     },
     {
@@ -294,12 +320,12 @@ export function OrdersTable({ data }: OrdersTableProps) {
 
   return (
     <div className="w-full">
-      <div className="flex items-center py-4 gap-4">
+      <div className="flex items-center py-4 gap-4 flex-wrap">
         <Input
           placeholder="Filter by customer name..."
-          value={(table.getColumn('customer')?.getFilterValue() as string) ?? ''}
+          value={(table.getColumn('customerName')?.getFilterValue() as string) ?? ''}
           onChange={(event) =>
-            table.getColumn('customer')?.setFilterValue(event.target.value)
+            table.getColumn('customerName')?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
@@ -312,7 +338,7 @@ export function OrdersTable({ data }: OrdersTableProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuCheckboxItem
-              checked={!table.getColumn('paid')?.getFilterValue()}
+              checked={table.getColumn('paid')?.getFilterValue() === undefined}
               onCheckedChange={() => table.getColumn('paid')?.setFilterValue(undefined)}
             >
               All
@@ -340,7 +366,7 @@ export function OrdersTable({ data }: OrdersTableProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuCheckboxItem
-              checked={!table.getColumn('fulfillmentType')?.getFilterValue()}
+              checked={table.getColumn('fulfillmentType')?.getFilterValue() === undefined}
               onCheckedChange={() => table.getColumn('fulfillmentType')?.setFilterValue(undefined)}
             >
               All
@@ -368,7 +394,7 @@ export function OrdersTable({ data }: OrdersTableProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuCheckboxItem
-              checked={!table.getColumn('status')?.getFilterValue()}
+              checked={table.getColumn('status')?.getFilterValue() === undefined}
               onCheckedChange={() => table.getColumn('status')?.setFilterValue(undefined)}
             >
               All
@@ -408,7 +434,10 @@ export function OrdersTable({ data }: OrdersTableProps) {
                       column.toggleVisibility(!!value)
                     }
                   >
-                    {column.id === 'fulfillmentType' ? 'Fulfillment Type' : column.id}
+                    {column.id === 'fulfillmentType' ? 'Fulfillment Type' : 
+                     column.id === 'customerName' ? 'Customer' :
+                     column.id === 'itemCount' ? 'Item Count' :
+                     column.id}
                   </DropdownMenuCheckboxItem>
                 )
               })}
