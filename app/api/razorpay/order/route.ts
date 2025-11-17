@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
             paid: true, // Pickup orders are marked as paid since no payment gateway is used
             paymentid: pickupOrderId, // Use our generated ID as payment reference
             delivered: false, // Will be marked true when picked up
-            complete: true, // Order is complete from processing standpoint for pickup
+            complete: false, // Order is complete from processing standpoint for pickup
             total: totals.totalAmount,
             items: {
               create: cartitems.map((cartItem: any) => {

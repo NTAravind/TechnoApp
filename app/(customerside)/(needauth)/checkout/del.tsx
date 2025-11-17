@@ -42,7 +42,7 @@ export default function DeliveryModeSelector({
             <Store className="h-6 w-6 mb-2 text-muted-foreground" />
             <div className="text-center">
               <div className="font-medium">Pick Up</div>
-              <div className="text-sm text-muted-foreground">Collect from store</div>
+              <div className="text-sm text-muted-foreground">Collect from store / arrange delivery </div>
          
             </div>
           </Label>
