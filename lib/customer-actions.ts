@@ -215,3 +215,33 @@ export async function getCustomerById(id: number) {
     return null
   }
 }
+
+export async function deleteCustomer(id: number) {
+  try {
+    // Optional: Check if customer exists first
+    const customer = await prisma.customer.findUnique({
+      where: { id },
+    })
+
+    if (!customer) {
+      return { success: false, error: 'Customer not found' }
+    }
+
+    await prisma.customer.delete({
+      where: { id },
+    })
+
+    revalidatePath('/customers')
+    
+    // If you are on the detail page, you might want to redirect
+    // redirect('/customers') 
+
+    return { success: true }
+  } catch (error) {
+    console.error('Error deleting customer:', error)
+    return { 
+      success: false, 
+      error: 'Failed to delete customer. They may have associated orders.' 
+    }
+  }
+}

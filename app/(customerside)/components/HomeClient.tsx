@@ -113,7 +113,9 @@ const Header = ({
   const handleEditProfile = () => {
     router.push('/profile/edit')
   }
-  
+    const handleDelete = () => {
+    router.push('/profile/Deleteacc')
+  }
   const handleLogout = async () => {
     try {
       await signOut({ 
@@ -158,6 +160,10 @@ const Header = ({
             <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Logout</span>
+            </DropdownMenuItem>
+             <DropdownMenuItem onClick={handleDelete} className="cursor-pointer text-red-600 focus:text-red-600">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Delete Account</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
