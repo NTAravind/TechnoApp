@@ -1,4 +1,4 @@
- // app/admin/product-backup/page.tsx
+ 
 import { getAllProducts } from "../../actions/products"
 import { ProductBackupClient } from "./ProductExporter"
 
