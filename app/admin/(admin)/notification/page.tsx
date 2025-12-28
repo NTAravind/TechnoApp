@@ -24,7 +24,7 @@ import {
   sendAdminNotification,
   sendTestNotification,
   type AdminNotificationData
-} from '../actions/notification'
+} from '../../actions/notification'
 
 interface CustomerStats {
   totalCustomers: number

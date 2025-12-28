@@ -1,6 +1,6 @@
 // app/admin/product/[id]/page.tsx
 import { notFound } from "next/navigation"
-import { ProductForm } from "../../components/products/productForm"
+import { ProductForm } from "@/app/admin/components/products/productForm"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { ArrowLeft, Package } from "lucide-react"

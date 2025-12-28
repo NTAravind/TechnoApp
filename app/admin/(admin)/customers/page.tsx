@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
-import { getCustomers } from '../actions/customer'
-import CustomersClient from '../components/customers/customerclient'
+import { getCustomers } from '@/app/admin/actions/customer'
+import CustomersClient from '../../components/customers/customerclient'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertCircle, Loader2 } from 'lucide-react'

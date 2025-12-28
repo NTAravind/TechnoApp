@@ -1,6 +1,6 @@
 // app/admin/categories/[id]/edit/page.tsx
 import { prisma } from "@/lib/prisma"
-import { CategoryForm } from "../../components/categories/Categoryform"
+import { CategoryForm } from "@/app/admin/components/categories/Categoryform"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"

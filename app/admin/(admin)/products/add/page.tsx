@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
-import { ProductForm } from "../../components/products/productForm"
-import {BulkProductUpload } from "../../components/products/BulkOrder"
+import { ProductForm } from "@/app/admin/components/products/productForm"
+import { BulkProductUpload } from "@/app/admin/components/products/BulkOrder"
 import { redirect } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 

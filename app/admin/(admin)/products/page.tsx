@@ -1,5 +1,5 @@
-import { ProductsTable } from '../components/products/productdatatable'
-import { getProducts, getCategories } from '../actions/admin'
+import { ProductsTable } from '../../components/products/productdatatable'
+import { getProducts, getCategories } from '../../actions/admin'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
