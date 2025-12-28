@@ -1,8 +1,8 @@
-'use server'
-import { notFound } from 'next/navigation'
+// app/partner/orders/[id]/page.tsx
+import { auth } from '@/auth'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Package, User, Calendar, CreditCard, CheckCircle, XCircle, DollarSign, Truck, Clock, MapPin } from 'lucide-react'
-import MarkToComplete from '../../components/orders/marktocomplete'
+import { ArrowLeft, Package, User, Clock, CreditCard, CheckCircle, XCircle, Truck, MapPin, ShoppingBag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -15,8 +15,8 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { fcurrency } from '@/lib/utils'
 import Image from 'next/image'
-
-import { getOrderById, Order, OrderItem } from '../../actions/orders'
+import { getPartnerOrderById } from '../../actions/order'
+import PartnerShipmentActions from '../../components/partnershipment'
 
 interface OrderDetailPageProps {
   params: Promise<{
@@ -24,11 +24,17 @@ interface OrderDetailPageProps {
   }>
 }
 
-export default async function OrderDetailPage({ params }: OrderDetailPageProps) {
-  // Await the params promise
+export default async function PartnerOrderDetailPage({ params }: OrderDetailPageProps) {
+  const session = await auth()
+  
+  if (!session || session.user?.role !== 'partner') {
+    redirect('/partner/login')
+  }
+
   const resolvedParams = await params
   const orderId = resolvedParams.id
-  const result = await getOrderById(orderId)
+  const partnerId = session.user.partnerId || session.user.id
+  const result = await getPartnerOrderById(orderId, partnerId)
 
   if (!result.success || !result.data) {
     notFound()
@@ -36,12 +42,8 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 
   const order = result.data
 
-  const getStatusColor = (status: boolean, type: 'payment' | 'delivery' | 'completion') => {
-    if (status) return 'text-emerald-600'
-    if (type === 'payment') return 'text-red-500'
-    if (type === 'delivery') return 'text-amber-500'
-    return 'text-slate-400'
-  }
+  // Filter items to show only this partner's products
+  const partnerItems = order.items.filter(item => item.product.partnerId === partnerId)
 
   const getStatusBadge = (paid: boolean, delivered: boolean, complete: boolean) => {
     if (complete) return { text: 'Completed', variant: 'default', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
@@ -50,7 +52,25 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
     return { text: 'Pending', variant: 'outline', color: 'bg-slate-100 text-slate-700 border-slate-300' }
   }
 
+  const getShippingBadge = (status: string) => {
+    switch (status) {
+      case 'DELIVERED':
+        return { text: 'Delivered', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+      case 'SHIPPED':
+        return { text: 'Shipped', color: 'bg-blue-100 text-blue-800 border-blue-200' }
+      case 'CANCELLED':
+        return { text: 'Cancelled', color: 'bg-red-100 text-red-800 border-red-200' }
+      default:
+        return { text: 'Pending', color: 'bg-amber-100 text-amber-800 border-amber-200' }
+    }
+  }
+
   const statusBadge = getStatusBadge(order.paid, order.delivered, order.complete)
+
+  // Calculate partner's items summary
+  const partnerTotal = partnerItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const pendingShipments = partnerItems.filter(item => item.shippingStatus === 'PENDING')
+  const shippedItems = partnerItems.filter(item => item.shippingStatus === 'SHIPPED' || item.shippingStatus === 'DELIVERED')
 
   return (
     <div className="min-h-screen bg-slate-50/50">
@@ -63,7 +83,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
             asChild
             className="w-fit transition-all hover:bg-slate-100 hover:border-slate-300"
           >
-            <Link href="/admin/orders">
+            <Link href="/partner/orders">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Orders
             </Link>
@@ -71,7 +91,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
           <div className="flex-1">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                Order #{order.id}
+                Order #{order.id.slice(-8)}
               </h1>
               <Badge className={`w-fit ${statusBadge.color} font-medium`}>
                 {statusBadge.text}
@@ -89,27 +109,44 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
           </div>
         </div>
 
+        {/* Shipment Status Alert */}
+        {pendingShipments.length > 0 && (
+          <div className="mb-6 p-4 bg-amber-50 border-l-4 border-amber-500 rounded-lg">
+            <div className="flex items-start gap-3">
+              <Package className="h-5 w-5 text-amber-600 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-amber-900">Action Required</h3>
+                <p className="text-sm text-amber-700 mt-1">
+                  You have {pendingShipments.length} item{pendingShipments.length !== 1 ? 's' : ''} pending shipment.
+                  Please mark them as shipped when ready.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Order Items */}
+            {/* Your Products in This Order */}
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="bg-slate-50/50 border-b border-slate-100">
                 <CardTitle className="flex items-center gap-2 text-xl">
-                  <Package className="h-5 w-5 text-slate-700" />
-                  Order Items
+                  <ShoppingBag className="h-5 w-5 text-slate-700" />
+                  Your Products ({partnerItems.length})
                 </CardTitle>
                 <CardDescription>
-                  {order.items.length} item{order.items.length !== 1 ? 's' : ''} in this order
+                  Items from your catalog in this order
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-6">
-                  {order.items.map((item: OrderItem, index: number) => {
+                  {partnerItems.map((item, index) => {
                     const packageCount = item.product.packaging && !item.product.LooseSell
                       ? Math.floor(item.quantity / item.product.packaging)
                       : 0
                     const displayCount = packageCount > 0 ? packageCount : item.quantity
+                    const shippingBadge = getShippingBadge(item.shippingStatus)
 
                     return (
                       <div key={item.id}>
@@ -125,20 +162,39 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                             />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-slate-900 text-lg">{item.product.name}</h3>
-                            <div className="flex flex-wrap items-center gap-2 mt-2">
-                              <Badge variant="outline" className="font-mono text-xs bg-slate-50">
-                                SKU: {item.product.sku}
-                              </Badge>
-                              {item.product.category?.name && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {item.product.category.name}
-                                </Badge>
-                              )}
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <h3 className="font-semibold text-slate-900 text-lg">{item.product.name}</h3>
+                                <div className="flex flex-wrap items-center gap-2 mt-2">
+                                  <Badge variant="outline" className="font-mono text-xs bg-slate-50">
+                                    SKU: {item.product.sku}
+                                  </Badge>
+                                  {item.product.category?.name && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {item.product.category.name}
+                                    </Badge>
+                                  )}
+                                  <Badge className={`text-xs ${shippingBadge.color}`}>
+                                    {shippingBadge.text}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                                  <div className="font-bold text-slate-900 text-lg">
+                                    {fcurrency(item.price * item.quantity)}
+                                  </div>
+                                  <div className="text-sm text-slate-600 mt-1">
+                                    {packageCount > 0 ? `Pkg: ${displayCount}` : `Qty: ${displayCount}`}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
+                            
                             {item.product.descr && (
                               <p className="text-sm text-slate-600 mt-2 leading-relaxed">{item.product.descr}</p>
                             )}
+                            
                             <div className="text-sm text-slate-500 mt-3 space-y-1">
                               {item.product.size?.length > 0 && (
                                 <div className="flex items-center gap-2">
@@ -163,19 +219,19 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                                 </span>
                               </div>
                             </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                              <div className="font-bold text-slate-900 text-lg">
-                                {fcurrency(item.price * item.quantity)}
+
+                            {/* Shipment Info */}
+                            {item.shippedAt && (
+                              <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                                Shipped on {new Date(item.shippedAt).toLocaleString('en-IN', {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short',
+                                })}
                               </div>
-                              <div className="text-sm text-slate-600 mt-1">
-                                {packageCount > 0 ? `Pkg: ${displayCount}` : `Qty: ${displayCount}`}
-                              </div>
-                            </div>
+                            )}
                           </div>
                         </div>
-                        {index < order.items.length - 1 && <Separator className="mt-6" />}
+                        {index < partnerItems.length - 1 && <Separator className="mt-6" />}
                       </div>
                     )
                   })}
@@ -184,91 +240,19 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                 <div className="bg-slate-50 rounded-lg p-6 mt-6">
                   <div className="space-y-3">
                     <div className="flex justify-between text-slate-600">
-                      <span>Subtotal ({order.items.length} items)</span>
-                      <span className="font-medium">
-                        {fcurrency(
-                          order.items.reduce((sum: number, item: OrderItem) => sum + item.price * item.quantity, 0)
-                        )}
-                      </span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between text-xl font-bold text-slate-900">
-                      <span>Total</span>
-                      <span>{fcurrency(order.total)}</span>
+                      <span>Your Items Total ({partnerItems.length})</span>
+                      <span className="font-medium">{fcurrency(partnerTotal)}</span>
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Order Timeline */}
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-                <CardTitle className="text-xl">Order Timeline</CardTitle>
-                <CardDescription>Track the progress of this order</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="space-y-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-3 h-3 bg-emerald-500 rounded-full mt-1 ring-4 ring-emerald-100" />
-                    <div className="flex-1">
-                      <p className="font-semibold text-slate-900">Order Created</p>
-                      <p className="text-sm text-slate-600">
-                        {new Date(order.createdAt).toLocaleString('en-IN', {
-                          dateStyle: 'full',
-                          timeStyle: 'short',
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                  {order.paid && (
-                    <div className="flex items-start gap-4">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full mt-1 ring-4 ring-blue-100" />
-                      <div className="flex-1">
-                        <p className="font-semibold text-slate-900">Payment Confirmed</p>
-                        {order.paymentid && (
-                          <p className="text-sm text-slate-600 font-mono bg-slate-50 px-2 py-1 rounded mt-1 inline-block">
-                            Payment ID: {order.paymentid}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {order.delivered && (
-                    <div className="flex items-start gap-4">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full mt-1 ring-4 ring-purple-100" />
-                      <div className="flex-1">
-                        <p className="font-semibold text-slate-900">Order Delivered</p>
-                        <p className="text-sm text-slate-600">Package successfully delivered to customer</p>
-                      </div>
-                    </div>
-                  )}
-                  {order.complete && (
-                    <div className="flex items-start gap-4">
-                      <div className="w-3 h-3 bg-emerald-600 rounded-full mt-1 ring-4 ring-emerald-100" />
-                      <div className="flex-1">
-                        <p className="font-semibold text-slate-900">Order Completed</p>
-                        <p className="text-sm text-slate-600">Transaction successfully completed</p>
-                      </div>
-                    </div>
-                  )}
-                  {order.updatedAt.getTime() !== order.createdAt.getTime() && (
-                    <div className="flex items-start gap-4">
-                      <div className="w-3 h-3 bg-amber-500 rounded-full mt-1 ring-4 ring-amber-100" />
-                      <div className="flex-1">
-                        <p className="font-semibold text-slate-900">Order Updated</p>
-                        <p className="text-sm text-slate-600">
-                          {new Date(order.updatedAt).toLocaleString('en-IN', {
-                            dateStyle: 'medium',
-                            timeStyle: 'short',
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Shipment Actions */}
+            <PartnerShipmentActions 
+              orderId={order.id}
+              items={partnerItems}
+            />
           </div>
 
           {/* Sidebar */}
@@ -315,21 +299,32 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
               </CardContent>
             </Card>
 
-            {/* Order Summary */}
+            {/* Your Order Summary */}
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="bg-slate-50/50 border-b border-slate-100">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <CreditCard className="h-5 w-5 text-slate-700" />
-                  Order Summary
+                  Your Items Summary
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-4">
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-slate-900">{fcurrency(order.total)}</div>
+                    <div className="text-3xl font-bold text-slate-900">{fcurrency(partnerTotal)}</div>
                     <p className="text-sm text-slate-600 mt-1">
-                      {order.items.length} item{order.items.length !== 1 ? 's' : ''}
+                      {partnerItems.length} item{partnerItems.length !== 1 ? 's' : ''}
                     </p>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Shipped:</span>
+                      <span className="font-medium text-blue-700">{shippedItems.length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Pending:</span>
+                      <span className="font-medium text-amber-700">{pendingShipments.length}</span>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -351,64 +346,30 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                         {order.paid ? 'Payment Received' : 'Payment Pending'}
                       </p>
                       <p className="text-sm text-slate-600">
-                        {order.paid ? 'Fully paid' : 'Awaiting payment'}
+                        {order.paid ? 'Order confirmed' : 'Awaiting payment'}
                       </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Delivery Status */}
-              <Card className={`border-2 ${order.delivered ? 'border-blue-200 bg-blue-50' : 'border-amber-200 bg-amber-50'}`}>
+              {/* Order Status */}
+              <Card className={`border-2 ${order.complete ? 'border-emerald-200 bg-emerald-50' : 'border-blue-200 bg-blue-50'}`}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
-                    <Truck className={`h-6 w-6 ${order.delivered ? 'text-blue-600' : 'text-amber-600'}`} />
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        {order.delivered ? 'Delivered' : 'In Transit'}
-                      </p>
-                      <p className="text-sm text-slate-600">
-                        {order.delivered ? 'Successfully delivered' : 'Being processed'}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Completion Status */}
-              <Card className={`border-2 ${order.complete ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className={`h-6 w-6 ${order.complete ? 'text-emerald-600' : 'text-slate-400'}`} />
+                    <Truck className={`h-6 w-6 ${order.complete ? 'text-emerald-600' : 'text-blue-600'}`} />
                     <div>
                       <p className="font-semibold text-slate-900">
                         {order.complete ? 'Order Complete' : 'In Progress'}
                       </p>
                       <p className="text-sm text-slate-600">
-                        {order.complete ? 'Transaction closed' : 'Processing order'}
+                        {order.complete ? 'All done!' : 'Processing order'}
                       </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
-
-            {/* Mark Complete Button - Only show if not complete */}
-            {!order.complete && (
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-                  <CardTitle className="text-lg">Order Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <MarkToComplete 
-                    prop={{ 
-                      id: order.id,
-                      phone: order.customer.phone 
-                    }} 
-                  />
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       </div>

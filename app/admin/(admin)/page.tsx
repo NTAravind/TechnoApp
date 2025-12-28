@@ -19,11 +19,11 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { getDashboardStats, refreshDashboard } from '../admin/actions/dashboard'
+import { getDashboardStats , refreshDashboard } from '../actions/dashboard'
 import { DashboardStats } from '@/types/dashboard'
 
 // Import sub-components
-import { StatsCard ,DashboardSkeleton ,RecentOrdersList ,TopProductsList , TopCustomersList ,ErrorBoundary} from '../admin/components/admin/dashboard'
+import { StatsCard ,DashboardSkeleton ,RecentOrdersList ,TopProductsList , TopCustomersList ,ErrorBoundary } from '../components/admin/dashboard'
 
 
 // Main Dashboard Component

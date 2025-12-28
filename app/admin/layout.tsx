@@ -23,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
 <div >
- <div><NavigationDock/></div>
+ 
         {children}
        
   </div>

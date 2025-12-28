@@ -9,17 +9,17 @@ const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000 // 1 hour
 function checkRateLimit(phone: string): boolean {
   const now = Date.now()
   const entry = rateLimitStore.get(phone)
-  
+
   if (!entry || now > entry.resetAt) {
     // Reset or create new entry
     rateLimitStore.set(phone, { attempts: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
     return true
   }
-  
+
   if (entry.attempts >= MAX_ATTEMPTS) {
     return false // Rate limited
   }
-  
+
   entry.attempts += 1
   return true
 }
@@ -28,12 +28,26 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const { phone } = body
-    if (phone == '901997 7375'){return NextResponse.json({success:true,message:"OTP sent successfully via WhatsApp"})}
+
     if (!phone) {
       return NextResponse.json(
         { success: false, error: 'Phone number is required' },
         { status: 400 }
       )
+    }
+
+    // Test account bypass - skip OTP sending for 9019997375
+    if (phone == '9019997375') {
+    
+      saveOtp(phone, '123456')
+      console.log('Test account OTP bypass:', { 
+        phone: phone,
+        timestamp: new Date().toISOString()
+      })
+      return NextResponse.json({
+        success: true,
+        message: 'OTP sent successfully via WhatsApp'
+      })
     }
 
     const phoneRegex = /^[6-9]\d{9}$/
@@ -44,7 +58,7 @@ export async function POST(req: Request) {
       )
     }
 
-    // Check rate limiting
+    // Check rate limiting (skip for test account)
     if (!checkRateLimit(phone)) {
       return NextResponse.json(
         { success: false, error: 'Too many OTP requests. Please try again after 1 hour.' },

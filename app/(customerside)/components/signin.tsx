@@ -25,7 +25,8 @@ export function SignIn() {
     setIsSubmitting(true)
     
     try {
-      const result = await signIn("credentials", {
+      // Changed to explicitly use 'customer-login' provider ID
+      const result = await signIn("customer-login", {
         phone: formData.phone.replace(/\D/g, ''), // Send only digits
         otp: formData.otp,
         redirect: false, // Handle redirect manually for better UX

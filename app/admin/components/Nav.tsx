@@ -7,7 +7,8 @@ import {
   Users, 
   FolderOpen,
   Home,
-  Bell
+  Bell,
+  Handshake
 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -28,6 +29,7 @@ const NavigationDock = () => {
     { id: 'products', label: 'Products', icon: Package, href: '/admin/products' },
     { id: 'categories', label: 'Categories', icon: FolderOpen, href: '/admin/categories' },
     { id: 'customers', label: 'Customers', icon: Users, href: '/admin/customers' },
+    { id: 'partner', label: 'Partners', icon: Handshake, href: '/admin/partner' },
         { id: 'notification', label: 'notifications', icon: Bell, href: '/admin/notification' },
   ];
 

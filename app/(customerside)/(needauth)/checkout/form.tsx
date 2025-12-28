@@ -370,7 +370,7 @@ const UserDetails = memo(function UserDetails({ user, deliveryMode }: { user: Us
         )}
         <div>
           <p className={`text-sm font-medium ${deliveryMode ? 'text-green-800' : 'text-blue-800'}`}>
-            {deliveryMode ? 'Delivery Mode Selected' : 'Pickup Mode Selected'}
+            {deliveryMode ? 'Delivery Mode Selected' : 'Cash On Delivery Selected'}
           </p>
           <p className={`text-xs ${deliveryMode ? 'text-green-700' : 'text-blue-700'}`}>
             {deliveryMode ? 'Your order will be delivered' : 'You can collect your order from our store'}
@@ -446,14 +446,15 @@ const PriceBreakdown = memo(function PriceBreakdown({ user, deliveryMode }: { us
   }, [user.us?.isDistributor, subtotal])
 
   const subtotalAfterDiscount = subtotal - distributorDiscount
+const deliveryCharge = useMemo(() => {
+  // Both COD and Online Delivery have 8% delivery charge
+  return subtotal * 0.08
+}, [subtotal])
 
-  const deliveryCharge = useMemo(() => {
-    return deliveryMode ? subtotal * 0.08 : 0
-  }, [deliveryMode, subtotal])
-
- const platformFee = useMemo(() => {
-    return deliveryMode ? subtotalAfterDiscount * 0.04 : 0
-  }, [deliveryMode, subtotalAfterDiscount])
+const platformFee = useMemo(() => {
+  // Platform fee applies to both delivery modes now
+  return subtotalAfterDiscount * 0.04
+}, [subtotalAfterDiscount])
 
   const total = subtotalAfterDiscount + deliveryCharge + platformFee
   
@@ -480,9 +481,9 @@ const PriceBreakdown = memo(function PriceBreakdown({ user, deliveryMode }: { us
 
       <div className="flex justify-between text-sm">
         <span className="text-gray-600 flex items-center gap-1">
-          <Truck className="h-4 w-4" />
-          {deliveryMode ? 'Delivery Charge (8%):' : 'Pickup (No Delivery):'}
-        </span>
+  <Truck className="h-4 w-4" />
+  Delivery Charge (8%):
+</span>
         <span className="font-medium">
           {deliveryMode ? fcurrency(deliveryCharge) : 'Free'}
         </span>
@@ -623,7 +624,7 @@ function PurchaseButton({
 }: {
   user: UserData;
   showAlert: (title: string, description: string, type?: 'success' | 'error' | 'warning', onConfirm?: () => void, showCancel?: boolean) => void;
-  del: boolean;
+  del: boolean; // true = online payment, false = COD
 }) {
   const [isPending, setPending] = useState(false);
   const [showBulkDialog, setShowBulkDialog] = useState(false);
@@ -633,7 +634,7 @@ function PurchaseButton({
   const { cartItems, getTotalPrice, ClearBasket } = ProductCart();
   const router = useRouter();
   const subtotal = getTotalPrice();
-   const deliveryCharge = useMemo(() => (del ? subtotal * 0.08 : 0), [del, subtotal]);
+  const deliveryCharge = useMemo(() => subtotal * 0.08, [subtotal]);
 
   const distributorDiscount = useMemo(() => {
     return user.us?.isDistributor ? subtotal * 0.1 : 0;
@@ -641,14 +642,16 @@ function PurchaseButton({
 
   const subtotalAfterDiscount = subtotal - distributorDiscount;
   const platformFee = useMemo(() => {
-   return  del?(subtotalAfterDiscount * 0.04) : 0;
-  }, [subtotalAfterDiscount]);
+    // Platform fee only applies to online payment
+    return del ? subtotalAfterDiscount * 0.04 : 0;
+  }, [subtotalAfterDiscount, del]);
 
   const totalAmount = subtotalAfterDiscount + deliveryCharge + platformFee;
 
+  // Only load Razorpay for online payments
   useEffect(() => {
     if (!del) {
-      // No need to load Razorpay script for pickup orders
+      // COD doesn't need Razorpay
       return;
     }
     if (!scriptLoaded && !window.Razorpay) {
@@ -686,7 +689,7 @@ function PurchaseButton({
             setPending(false);
             showAlert(
               'Order Placed Successfully!',
-              `Your delivery order #${orderId.slice(-8)} has been confirmed.`,
+              `Your order #${orderId.slice(-8)} has been confirmed.`,
               'success',
               () => {
                 ClearBasket();
@@ -713,72 +716,14 @@ function PurchaseButton({
     [showAlert, ClearBasket, router]
   );
 
-  const generateOrderText = useCallback(() => {
-    const orderItems = cartItems
-      .map((item) => `${item.item.name} - Qty: ${item.qty} - Price: ${fcurrency(item.item.price * item.qty)}`)
-      .join('\n');
-
-    let orderText = `🛒 *${del ? 'Delivery' : 'Pickup'} Order Request*\n\n`;
-    if (currentOrderId) {
-      orderText += `📌 *Order ID:* ${currentOrderId.slice(-8)}\n\n`;
-    }
-    orderText += `📋 *Order Details:*\n${orderItems}\n\n💰 *Order Summary:*\nSubtotal: ${fcurrency(subtotal)}`;
-
-    if (user.us?.isDistributor) {
-      orderText += `\nDistributor Discount (10%): -${fcurrency(distributorDiscount)}`;
-      orderText += `\nSubtotal After Discount: ${fcurrency(subtotalAfterDiscount)}`;
-    }
-
-    orderText += `\n${del ? `Delivery Charge: ${deliveryCharge === 0 ? 'Free (₹2000+ order)' : fcurrency(deliveryCharge)}` : 'Pickup: Free'}`;
-    orderText += `\nPlatform Fee (4%): ${fcurrency(platformFee)}`;
-    orderText += `\n*Total: ${fcurrency(totalAmount)}*`;
-    orderText += `\n\n👤 *Customer Details:*\nName: ${user.us?.name || 'N/A'}\nPhone: ${user.phone}`;
-    orderText += `\nAddress: ${user.us?.Address || 'N/A'}`;
-    if (user.us?.pincode) {
-      orderText += `\nPincode: ${user.us?.pincode}`;
-    }
-
-    if (user.us?.email) {
-      orderText += `\nEmail: ${user.us.email}`;
-    }
-
-    if (user.us?.isDistributor) {
-      orderText += `\nAccount Type: Distributor`;
-    }
-
-    orderText += `\nOrder Type: ${del ? 'Delivery' : 'Pickup'}`;
-
-    if (!del) {
-      orderText += `\n\n📍 *Pickup Instructions:*\nPlease visit our store to collect your order at ${user.us?.Address || 'the provided address'}. Ensure to bring your order ID.`;
-    } else {
-      orderText += `\n\n📍 *Delivery Instructions:*\nPlease ensure someone is available at ${user.us?.Address || 'the provided address'} ${user.us?.pincode ? `(${user.us?.pincode})` : ''} to receive the order.`;
-    }
-
-    return orderText;
-  }, [cartItems, subtotal, distributorDiscount, subtotalAfterDiscount, deliveryCharge, del, user, totalAmount, platformFee, currentOrderId]);
-
-  const copyOrderDetails = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(generateOrderText());
-      showAlert('Order Details Copied!', 'Order details copied to clipboard.', 'success');
-    } catch (err) {
-      showAlert('Copy Failed', 'Failed to copy order details.', 'error');
-    }
-  }, [generateOrderText, showAlert]);
-
-  const openWhatsApp = useCallback(() => {
-    const whatsappUrl = `${process.env.NEXT_PUBLIC_WHATSAPP_LINK || 'https://wa.link/rb6f0r'}?text=${encodeURIComponent(generateOrderText())}`;
-    window.open(whatsappUrl, '_blank');
-  }, [generateOrderText]);
-
   const handleOrder = useCallback(async () => {
     if (!user.us?.name || !user.phone || !user.us?.Address) {
       showAlert('Missing Information', 'Please complete your profile with name, phone number, and address.', 'warning');
       return;
     }
 
-    if (del && !user.us?.pincode) {
-      showAlert('Missing Pincode', 'Please provide a pincode for delivery orders.', 'warning');
+    if (!user.us?.pincode) {
+      showAlert('Missing Pincode', 'Please provide a pincode for delivery.', 'warning');
       return;
     }
 
@@ -795,12 +740,14 @@ function PurchaseButton({
     setPending(true);
     try {
       const orderItems = cartItems.map((cartItem) => ({ productId: cartItem.item.id, qty: cartItem.qty }));
+      const paymentMethod = del ? 'online' : 'cod';
+      
       const createOrderRes = await fetch('/api/razorpay/order', {
         method: 'POST',
         body: JSON.stringify({
           customerId: user.us.id,
           cartitems: orderItems,
-          delivery: del,
+          paymentMethod: paymentMethod,
           phoneno: user.phone,
           address: user.us.Address,
           pincode: user.us.pincode,
@@ -825,12 +772,12 @@ function PurchaseButton({
 
       setCurrentOrderId(orderData.orderId);
 
-      // Handle pickup orders
-      if (!del || orderData.isPickup) {
+      // Handle COD orders
+      if (!del || orderData.isCOD) {
         setPending(false);
         showAlert(
-          'Pickup Order Confirmed!',
-          `Your pickup order #${orderData.orderId.slice(-8)} has been placed successfully. Please visit our store to collect your order and bring this order ID with you.`,
+          'COD Order Confirmed!',
+          `Your Cash on Delivery order #${orderData.orderId.slice(-8)} has been placed successfully. You will pay ${fcurrency(totalAmount)} in cash when the order is delivered. Our team will contact you shortly for confirmation.`,
           'success',
           () => {
             ClearBasket();
@@ -840,7 +787,7 @@ function PurchaseButton({
         return;
       }
 
-      // Handle delivery orders - proceed with Razorpay
+      // Handle online payment orders - proceed with Razorpay
       if (!scriptLoaded || !window.Razorpay) {
         showAlert('Payment System Error', 'Payment system not loaded. Try again.', 'error');
         setPending(false);
@@ -852,7 +799,7 @@ function PurchaseButton({
         amount: Math.round(orderData.amount * 100),
         currency: 'INR',
         name: 'TECHNO INDUSTRIES',
-        description: 'Delivery Order Payment',
+        description: 'Online Payment',
         order_id: orderData.orderId,
         prefill: {
           name: user.us?.name || '',
@@ -862,7 +809,7 @@ function PurchaseButton({
           pincode: user.us?.pincode || '',
         },
         notes: {
-          delivery_mode: 'delivery',
+          payment_mode: 'online',
           customer_type: user.us?.isDistributor ? 'distributor' : 'regular',
           discount_applied: user.us?.isDistributor ? '10%' : 'none',
           address: user.us?.Address,
@@ -897,7 +844,6 @@ function PurchaseButton({
                 razorpay_signature: response.razorpay_signature,
                 customerId: user?.us?.id,
                 cartitems: orderItems,
-                delivery: true,
                 pricepaid: orderData.amount,
                 address: user.us?.Address,
                 pincode: user.us?.pincode,
@@ -913,7 +859,7 @@ function PurchaseButton({
 
             showAlert(
               'Order Placed Successfully!',
-              `Your delivery order #${orderData.orderId.slice(-8)} has been confirmed.`,
+              `Your online payment order #${orderData.orderId.slice(-8)} has been confirmed.`,
               'success',
               () => {
                 ClearBasket();
@@ -968,9 +914,10 @@ function PurchaseButton({
     user.us?.Address && 
     cartItems.length > 0 && 
     totalAmount > 0 && 
-    (!del || user.us?.pincode), 
-    [user.us?.name, user.phone, user.us?.Address, cartItems.length, totalAmount, del, user.us?.pincode]
+    user.us?.pincode, 
+    [user.us?.name, user.phone, user.us?.Address, cartItems.length, totalAmount, user.us?.pincode]
   );
+  
   const isBulkOrder = totalAmount > 50000;
   const isEmptyCart = cartItems.length === 0;
 
@@ -979,15 +926,23 @@ function PurchaseButton({
     if (isEmptyCart) return 'Add Items to Cart';
     if (isBulkOrder) return 'Contact for Bulk Order';
     if (!canProceed) return 'Complete Profile Details';
-    return del ? `Pay ${fcurrency(totalAmount)}` : `Confirm Pickup Order`;
+    return del ? `Pay ${fcurrency(totalAmount)}` : `Confirm COD Order (${fcurrency(totalAmount)})`;
   }, [isPending, isEmptyCart, isBulkOrder, canProceed, del, totalAmount]);
 
   const getButtonColor = useCallback(() => {
     if (isEmptyCart) return 'bg-red-600 hover:bg-red-700 text-white';
     if (isBulkOrder) return 'bg-orange-600 hover:bg-orange-700 text-white';
     if (!canProceed) return 'bg-gray-500 hover:bg-gray-600 text-white';
+    if (!del) return 'bg-orange-600 hover:bg-orange-700 text-white'; // COD button color
     return 'text-white';
-  }, [isEmptyCart, isBulkOrder, canProceed]);
+  }, [isEmptyCart, isBulkOrder, canProceed, del]);
+
+  const getButtonStyle = useCallback(() => {
+    if (!isEmptyCart && !isBulkOrder && canProceed && del) {
+      return { backgroundColor: 'oklch(0.7143 0.2145 146.6189)' }; // Green for online payment
+    }
+    return undefined;
+  }, [isEmptyCart, isBulkOrder, canProceed, del]);
 
   return (
     <>
@@ -996,9 +951,7 @@ function PurchaseButton({
           onClick={handleOrder}
           disabled={isPending || isEmptyCart}
           className={`w-full py-3 px-4 flex items-center gap-2 ${getButtonColor()}`}
-          style={{
-            backgroundColor: !isEmptyCart && !isBulkOrder && canProceed ? 'oklch(0.7143 0.2145 146.6189)' : undefined,
-          }}
+          style={getButtonStyle()}
           aria-label={getButtonText()}
           aria-disabled={isPending || isEmptyCart}
         >
@@ -1019,7 +972,7 @@ function PurchaseButton({
             </>
           ) : (
             <>
-              {del ? <CreditCard className="h-5 w-5" /> : <ShoppingBag className="h-5 w-5" />}
+              {del ? <CreditCard className="h-5 w-5" /> : <Truck className="h-5 w-5" />}
               {getButtonText()}
             </>
           )}
@@ -1032,7 +985,7 @@ function PurchaseButton({
               <div className="text-green-600 font-medium">✓ Distributor discount applied</div>
             )}
             <div className="text-xs text-gray-400">
-              {del ? 'Delivery order with online payment' : 'Pickup order - no payment required'}
+              {del ? 'Online Payment (Prepaid)' : 'Cash on Delivery (COD)'}
             </div>
           </div>
         )}
@@ -1046,7 +999,7 @@ function PurchaseButton({
               Bulk Order Request - {fcurrency(totalAmount)}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Your order exceeds ₹50,000. Please use WhatsApp for bulk order processing.
+              Your order exceeds ₹50,000. Please contact us via WhatsApp for bulk order processing.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="my-4 space-y-4">
@@ -1085,8 +1038,8 @@ function PurchaseButton({
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span>{del ? 'Delivery Charge:' : 'Pickup:'}</span>
-                  <span className="font-medium">{del ? (deliveryCharge === 0 ? 'Free' : fcurrency(deliveryCharge)) : 'Free'}</span>
+                  <span>Delivery Charge (8%):</span>
+                  <span className="font-medium">{fcurrency(deliveryCharge)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Platform Fee (4%):</span>
@@ -1098,49 +1051,18 @@ function PurchaseButton({
                 </div>
               </div>
             </div>
-            <div className="rounded-lg p-4 border" style={{ backgroundColor: 'oklch(0.95 0.05 146.6189)', borderColor: 'oklch(0.8 0.1 146.6189)' }}>
-              <h4 className="font-semibold mb-2 flex items-center gap-2" style={{ color: 'oklch(0.4 0.2 146.6189)' }}>
-                <UserIcon className="h-4 w-4" />
-                Customer Information:
-              </h4>
-              <div className="text-sm space-y-1" style={{ color: 'oklch(0.5 0.15 146.6189)' }}>
-                <p>
-                  <span className="font-medium">Name:</span> {user.us?.name || 'N/A'}
-                </p>
-                <p>
-                  <span className="font-medium">Phone:</span> {user.phone}
-                </p>
-                <p>
-                  <span className="font-medium">Address:</span> {user.us?.Address || 'N/A'}
-                </p>
-                {user.us?.pincode && (
-                  <p>
-                    <span className="font-medium">Pincode:</span> {user.us.pincode}
-                  </p>
-                )}
-                {user.us?.email && (
-                  <p>
-                    <span className="font-medium">Email:</span> {user.us.email}
-                  </p>
-                )}
-                <p>
-                  <span className="font-medium">Account Type:</span> {user.us?.isDistributor ? 'Distributor' : 'Regular Customer'}
-                </p>
-                <p>
-                  <span className="font-medium">Order Type:</span> {del ? 'Delivery' : 'Pickup'}
-                </p>
-              </div>
-            </div>
           </div>
           <AlertDialogFooter className="flex flex-col sm:flex-row gap-2">
             <AlertDialogCancel>Close</AlertDialogCancel>
-            <Button onClick={copyOrderDetails} variant="outline" className="flex items-center gap-2">
-              <Copy className="h-4 w-4" />
-              Copy Details
-            </Button>
-            <Button onClick={openWhatsApp} className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2">
+            <Button 
+              onClick={() => {
+                const whatsappUrl = `${process.env.NEXT_PUBLIC_WHATSAPP_LINK || 'https://wa.link/rb6f0r'}`;
+                window.open(whatsappUrl, '_blank');
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+            >
               <MessageSquare className="h-4 w-4" />
-              Send to WhatsApp
+              Contact on WhatsApp
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1148,7 +1070,6 @@ function PurchaseButton({
     </>
   );
 }
-
 function CheckoutContent({ user }: { user: UserData }) {
   const [isEditing, setIsEditing] = useState(!user.us?.name || !user.us?.Address);
   const [currentUser, setCurrentUser] = useState<UserData>(user);
@@ -1220,7 +1141,7 @@ function CheckoutContent({ user }: { user: UserData }) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <UserIcon className="h-5 w-5" style={{ color: 'oklch(0.7143 0.2145 146.6189)' }} />
-                      <CardTitle className="text-xl">{deliveryMode ? 'Delivery Information' : 'Pickup Information'}</CardTitle>
+                      <CardTitle className="text-xl">{deliveryMode ? 'Delivery Information' : 'COD Information'}</CardTitle>
                     </div>
                     {user.us?.name && user.us?.Address && (
                       <Button variant="outline" size="sm" onClick={() => setIsEditing(!isEditing)} className="flex items-center gap-2">

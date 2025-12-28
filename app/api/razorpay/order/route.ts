@@ -5,8 +5,9 @@ import { GetProductPrice } from "@/lib/productActions";
 import prisma from "@/lib/prisma";
 import crypto from "crypto";
 import { v4 as uuidv4 } from 'uuid';
+
 // Helper function to calculate order totals consistently
-function calculateOrderTotals(cartitems: any[], products: any[], isDistributor: boolean, delivery: boolean) {
+function calculateOrderTotals(cartitems: any[], products: any[], isDistributor: boolean) {
   // Calculate subtotal
   const subtotal = cartitems.reduce((total: number, orderItem: any) => {
     const product = products.find((p: any) => p.id === orderItem.productId);
@@ -22,10 +23,12 @@ function calculateOrderTotals(cartitems: any[], products: any[], isDistributor: 
   const subtotalAfterDiscount = subtotal - distributorDiscount;
 
   // Calculate delivery charge (8% of original subtotal before discount)
-  const deliveryCharge = delivery ? subtotal * 0.08 : 0;
+  // Both COD and Online Payment have delivery charges
+  const deliveryCharge = subtotal * 0.08;
 
   // Calculate platform/service fee (4% on subtotal after discount)
-  const platformFee = delivery ? subtotalAfterDiscount * 0.04 : 0;
+  // Both COD and Online Payment have platform fees
+  const platformFee = subtotalAfterDiscount * 0.04;
 
   // Calculate total amount
   const totalAmount = subtotalAfterDiscount + deliveryCharge + platformFee;
@@ -48,18 +51,23 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { phoneno, cartitems, pincode, delivery, customerId, razorpay_payment_id, razorpay_order_id, razorpay_signature, pricepaid, address } = body;
+    const { phoneno, cartitems, pincode, paymentMethod, customerId, razorpay_payment_id, razorpay_order_id, razorpay_signature, pricepaid, address } = body;
 
     const isOrderCompletion = razorpay_payment_id && razorpay_order_id && razorpay_signature;
 
     if (!isOrderCompletion) {
       // ORDER CREATION PHASE
-      if (!phoneno || !cartitems || !Array.isArray(cartitems) || cartitems.length === 0 || !customerId) {
+      if (!phoneno || !cartitems || !Array.isArray(cartitems) || cartitems.length === 0 || !customerId || !paymentMethod) {
         return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
       }
 
-      if (delivery && !pincode) {
+      if (!pincode) {
         return NextResponse.json({ error: "Pincode required for delivery" }, { status: 400 });
+      }
+
+      // Validate payment method
+      if (!['online', 'cod'].includes(paymentMethod)) {
+        return NextResponse.json({ error: "Invalid payment method" }, { status: 400 });
       }
 
       // Get customer information to check if they're a distributor
@@ -75,8 +83,8 @@ export async function POST(req: NextRequest) {
       const productIds = cartitems.map((item: any) => item.productId);
       const products = await GetProductPrice(productIds);
 
-      // Calculate totals using helper function
-      const totals = calculateOrderTotals(cartitems, products, customer.isDistributor, delivery);
+      // Calculate totals using helper function (same for both COD and online)
+      const totals = calculateOrderTotals(cartitems, products, customer.isDistributor);
 
       if (totals.totalAmount > 50000) {
         return NextResponse.json({ error: "Please prefer bulk order" }, { status: 501 });
@@ -86,19 +94,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid order amount" }, { status: 400 });
       }
 
-      // Handle pickup orders (delivery = false)
-      if (!delivery) {
-  
-        const pickupOrderId =`pickup_${uuidv4()}`;
+      // Handle COD orders (paymentMethod = 'cod')
+      if (paymentMethod === 'cod') {
+        const codOrderId = `cod_${uuidv4()}`;
         
-        // Create order directly in database for pickup
+        // Create order directly in database for COD
         const dbOrder = await prisma.order.create({
           data: {
             customerId: customerId,
-            paid: true, // Pickup orders are marked as paid since no payment gateway is used
-            paymentid: pickupOrderId, // Use our generated ID as payment reference
-            delivered: false, // Will be marked true when picked up
-            complete: false, // Order is complete from processing standpoint for pickup
+            paid: false, // COD orders are marked as unpaid until delivery
+            paymentid: codOrderId,
+            delivered: true, // Set to true to indicate it's a delivery order (vs pickup)
+            complete: false, // Will be marked true when delivered and payment collected
             total: totals.totalAmount,
             items: {
               create: cartitems.map((cartItem: any) => {
@@ -119,21 +126,22 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        console.log("✅ Pickup order created:", dbOrder.id);
-        console.log(`✅ Pickup order totals:`, totals);
+        console.log("✅ COD order created:", dbOrder.id);
+        console.log(`✅ COD order totals:`, totals);
 
         return NextResponse.json({
           success: true,
-          orderId: pickupOrderId,
+          orderId: codOrderId,
           dbOrderId: dbOrder.id,
           amount: totals.totalAmount,
-          isPickup: true,
+          isCOD: true,
+          paymentMethod: 'cod',
           breakdown: totals,
           order: dbOrder
         }, { status: 200 });
       }
 
-      // Handle delivery orders - create Razorpay order
+      // Handle online payment orders
       if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
         return NextResponse.json({ error: "Payment service configuration error" }, { status: 500 });
       }
@@ -149,7 +157,7 @@ export async function POST(req: NextRequest) {
         receipt: `receipt_${phoneno}_${Date.now()}`,
         notes: { 
           phone: phoneno, 
-          delivery_mode: "delivery", 
+          payment_mode: "online", 
           pincode: pincode || "N/A", 
           date: Date.now(),
           customer_type: customer.isDistributor ? "distributor" : "regular",
@@ -168,8 +176,8 @@ export async function POST(req: NextRequest) {
           id: razorpayOrder.id,
           customerId: customerId,
           paid: false,
-          paymentid: razorpayOrder.id, // Will be updated with payment ID upon completion
-          delivered: delivery, // true for delivery, false for pickup
+          paymentid: razorpayOrder.id,
+          delivered: true, // true for delivery orders
           complete: false,
           total: totals.totalAmount,
           items: {
@@ -191,20 +199,21 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      console.log("✅ Unpaid delivery order created:", dbOrder.id);
-      console.log(`✅ Delivery order totals:`, totals);
+      console.log("✅ Unpaid online order created:", dbOrder.id);
+      console.log(`✅ Online order totals:`, totals);
 
       return NextResponse.json({
         success: true,
         orderId: razorpayOrder.id,
         dbOrderId: dbOrder.id,
         amount: totals.totalAmount,
-        isPickup: false,
+        isCOD: false,
+        paymentMethod: 'online',
         breakdown: totals,
       }, { status: 200 });
 
     } else {
-      // ORDER COMPLETION PHASE (Only for delivery orders with Razorpay)
+      // ORDER COMPLETION PHASE (Only for online payment orders with Razorpay)
       if (!customerId || !cartitems || !Array.isArray(cartitems) || cartitems.length === 0 || !pricepaid) {
         return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
       }
@@ -275,7 +284,7 @@ export async function POST(req: NextRequest) {
       const serverProducts = await GetProductPrice(productIds);
 
       // Calculate server-side totals using the same helper function
-      const serverTotals = calculateOrderTotals(cartitems, serverProducts, customer.isDistributor, delivery);
+      const serverTotals = calculateOrderTotals(cartitems, serverProducts, customer.isDistributor);
 
       // Verify the Razorpay order amount matches our calculation
       if (razorpayOrder.amount !== Math.round(serverTotals.totalAmount * 100)) {

@@ -1,6 +1,6 @@
 // app/admin/orders/page.tsx
-import { getOrders } from "../actions/orders"
-import { OrdersTable } from "../components/orders/ordertable"
+import { getOrders } from "../../actions/orders"
+import { OrdersTable } from "../../components/orders/ordertable"
 
 // Remove this duplicate type definition - use the one from actions/orders
 // Or if you need it here, make sure id is string not number

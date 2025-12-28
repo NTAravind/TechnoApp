@@ -3,7 +3,7 @@ import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Package, Star, Share, Heart } from 'lucide-react'
+import { ArrowLeft, Package, Star, Share, Heart, Store } from 'lucide-react'
 import Link from 'next/link'
 import BuySection from '../../components/BuySection'
 import ProductCard from '../../components/products/productcard'
@@ -25,6 +25,7 @@ interface Product {
   descr: string | null
   sku: string
   categoryId: number
+  partnername: string
   category: { name: string }
   createdAt: string
   updatedAt: string
@@ -193,6 +194,13 @@ function ProductInfo({ product }: { product: Product }) {
           {product.name}
         </h1>
         
+        {/* Sold By Partner */}
+        <div className="flex items-center gap-2 text-sm">
+          <Store className="h-4 w-4 text-gray-500" />
+          <span className="text-gray-600">Sold by</span>
+          <span className="font-medium text-gray-900">{product.partnername}</span>
+        </div>
+        
         {/* Rating */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
@@ -264,6 +272,14 @@ function DesktopInfo({ product }: { product: Product }) {
       
       <div className="space-y-3">
         <h1 className="text-3xl font-bold text-gray-900">{product.name}</h1>
+        
+        {/* Sold By Partner */}
+        <div className="flex items-center gap-2 text-sm">
+          <Store className="h-4 w-4 text-gray-500" />
+          <span className="text-gray-600">Sold by</span>
+          <span className="font-semibold text-gray-900">{product.partnername}</span>
+        </div>
+        
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
             {[...Array(5)].map((_, i) => (
@@ -362,6 +378,7 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
     packaging: product.packaging ?? null,
     LooseSell: product.LooseSell ?? false,
     descr: product.descr ?? null,
+    partnername: product.partnername,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
   }

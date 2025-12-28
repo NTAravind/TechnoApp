@@ -8,6 +8,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum shippingstatus{
+  PENDING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
 model Category {
   id        Int       @id @default(autoincrement())
   name      String    @unique
@@ -24,14 +30,16 @@ model Product {
   imgurl     String?
   unit       String
   price      Float
-  packaging  Int?
-  LooseSell  Boolean     @default(false)
   descr      String?
   sku        String      @unique
   categoryId Int
   isVisible  Boolean     @default(true)
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
+  packaging  Int?
+  LooseSell  Boolean     @default(false)
+  partnerId  String      @default("a90ad93a-98f8-4ef8-9faa-01649e58047b")
+  partnername  String      @default("Techno")
   orderItems OrderItem[]
   category   Category    @relation(fields: [categoryId], references: [id])
 
@@ -49,7 +57,6 @@ model Customer {
   Address       String?
   pincode       String?
   orders        Order[]
-    pushSubscriptions PushSubscription[]
 }
 
 model Order {
@@ -76,17 +83,15 @@ model OrderItem {
   price     Float
   order     Order   @relation(fields: [orderId], references: [id])
   product   Product @relation(fields: [productId], references: [id])
-
+  shippingStatus shippingstatus @default(PENDING)
+  shippedBy      String?        // Partner ID who shipped it
+  shippedAt      DateTime?      // When it was shipped
   @@index([orderId, productId])
 }
 
-
-  model PushSubscription {
-  id         Int       @id @default(autoincrement())
-  endpoint   String    @unique
-  keys       Json
-  customerId String?      // optional: link to your Customer
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  customer   Customer? @relation(fields: [customerId], references: [phone])
+model Partner {
+  id       String @id @default(uuid())
+  username String @unique
+  password String @unique
+  name     String  
 }

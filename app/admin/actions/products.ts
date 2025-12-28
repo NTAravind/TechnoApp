@@ -545,3 +545,33 @@ export async function validateBulkUploadData(
     }
   }
 }
+
+
+export async function getAllProducts() {
+  try {
+    const products = await prisma.product.findMany({
+      include: {
+        category: true,
+        orderItems: true,
+      },
+      orderBy: {
+        id: 'asc',
+      },
+    })
+
+    return {
+      success: true,
+      data: products,
+      count: products.length,
+      timestamp: new Date().toISOString(),
+    }
+  } catch (error) {
+    console.error('Error fetching products:', error)
+    return {
+      success: false,
+      error: 'Failed to fetch products',
+      data: [],
+      count: 0,
+    }
+  }
+}

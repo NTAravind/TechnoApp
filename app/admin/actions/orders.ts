@@ -3,6 +3,10 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { sendNotificationToCustomerByPhone } from './push-notification'
+
+// BYPASS PARTNER - Add the partner ID that should skip shipment validation
+const BYPASS_PARTNER_ID = "a90ad93a-98f8-4ef8-9faa-01649e58047b" // Change this to your actual partner ID
+
 // Updated types to match the Prisma schema and component expectations
 export interface OrderProduct {
   id: number
@@ -15,6 +19,7 @@ export interface OrderProduct {
   weight: string | null
   packaging: number | null
   LooseSell: boolean
+  partnerId: string // Added
   category: {
     id: number
     name: string
@@ -25,6 +30,9 @@ export interface OrderItem {
   id: number
   quantity: number
   price: number
+  shippingStatus: string
+  shippedBy: string | null
+  shippedAt: Date | null
   product: OrderProduct
 }
 
@@ -39,7 +47,7 @@ export interface OrderCustomer {
 }
 
 export interface Order {
-  id: string // Changed to string for UUID
+  id: string
   customerId: number
   paid: boolean
   paymentid: string
@@ -92,6 +100,9 @@ export async function getOrders(): Promise<Order[]> {
         id: item.id,
         quantity: item.quantity,
         price: item.price,
+        shippingStatus: item.shippingStatus,
+        shippedBy: item.shippedBy,
+        shippedAt: item.shippedAt,
         product: {
           id: item.product.id,
           name: item.product.name,
@@ -103,6 +114,7 @@ export async function getOrders(): Promise<Order[]> {
           weight: item.product.weight,
           packaging: item.product.packaging,
           LooseSell: item.product.LooseSell,
+          partnerId: item.product.partnerId,
           category: item.product.category ? {
             id: item.product.category.id,
             name: item.product.category.name
@@ -119,7 +131,6 @@ export async function getOrders(): Promise<Order[]> {
   }
 }
 
-// Updated to accept string ID (UUID) and return proper success/error structure
 export async function getOrderById(id: string): Promise<{ success: boolean; data: Order | null; error?: string }> {
   try {
     const order = await prisma.order.findUnique({
@@ -162,6 +173,9 @@ export async function getOrderById(id: string): Promise<{ success: boolean; data
         id: item.id,
         quantity: item.quantity,
         price: item.price,
+        shippingStatus: item.shippingStatus,
+        shippedBy: item.shippedBy,
+        shippedAt: item.shippedAt,
         product: {
           id: item.product.id,
           name: item.product.name,
@@ -173,6 +187,7 @@ export async function getOrderById(id: string): Promise<{ success: boolean; data
           weight: item.product.weight,
           packaging: item.product.packaging,
           LooseSell: item.product.LooseSell,
+          partnerId: item.product.partnerId,
           category: item.product.category ? {
             id: item.product.category.id,
             name: item.product.category.name
@@ -191,7 +206,6 @@ export async function getOrderById(id: string): Promise<{ success: boolean; data
   }
 }
 
-// Updated to accept string ID (UUID)
 export async function updateOrderStatus(
   id: string, 
   updates: {
@@ -238,6 +252,9 @@ export async function updateOrderStatus(
         id: item.id,
         quantity: item.quantity,
         price: item.price,
+        shippingStatus: item.shippingStatus,
+        shippedBy: item.shippedBy,
+        shippedAt: item.shippedAt,
         product: {
           id: item.product.id,
           name: item.product.name,
@@ -249,6 +266,7 @@ export async function updateOrderStatus(
           weight: item.product.weight,
           packaging: item.product.packaging,
           LooseSell: item.product.LooseSell,
+          partnerId: item.product.partnerId,
           category: item.product.category ? {
             id: item.product.category.id,
             name: item.product.category.name
@@ -268,69 +286,188 @@ export async function updateOrderStatus(
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-///////NOTIFICaTIONS RELATED CODE BELOW
+// SHIPMENT VALIDATION & TRACKING - WITH BYPASS PARTNER
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-export async function markOrderComplete(orderId: string, customerPhone: string) {
-  try {
-    // Update order to complete
-    const order = await prisma.order.update({
-      where: { id: orderId },
-      data: { 
-        complete: true,
-        delivered: true // Mark as delivered when complete
-      },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: true
-          }
+
+/**
+ * Check if order can be completed (all items must be ready to ship)
+ * Items from BYPASS_PARTNER_ID are automatically considered ready
+ */
+export async function canCompleteOrder(orderId: string) {
+  const orderItems = await prisma.orderItem.findMany({
+    where: { orderId },
+    select: {
+      id: true,
+      shippingStatus: true,
+      shippedBy: true,
+      shippedAt: true,
+      product: {
+        select: { 
+          name: true, 
+          partnerId: true,
+          sku: true
         }
       }
-    })
-
-    // Send completion notification
-    const notificationPayload = {
-      title: 'Order Completed! 🎉',
-      body: `Your order #${orderId.slice(-6)} worth ₹${order.total.toFixed(2)} has been completed successfully. Thank you for shopping with us!`,
-      icon: '/icons/order-completed.png',
-      badge: '/icons/notification-badge.png',
-      data: { 
-        orderId, 
-        type: 'order_completed',
-        total: order.total,
-        customerPhone 
-      },
-      actions: [
-        {
-          action: 'view_order',
-          title: 'View Order Details'
-        },
-        {
-          action: 'shop_again',
-          title: 'Shop Again'
-        }
-      ]
     }
+  })
 
-    // Send notification using customer phone
-    const notificationResult = await sendNotificationToCustomerByPhone(
-      customerPhone, 
-      notificationPayload
-    )
+  // Filter out items from bypass partner - they don't need to be shipped
+  const itemsRequiringShipment = orderItems.filter(
+    item => item.product.partnerId !== BYPASS_PARTNER_ID
+  )
 
-    // Revalidate pages to show updated status
-    revalidatePath('/admin/orders')
-    revalidatePath(`/admin/orders/${orderId}`)
+  const pendingItems = itemsRequiringShipment.filter(
+    item => item.shippingStatus === 'PENDING'
+  )
 
-    return { 
-      success: true, 
-      order,
-      notificationSent: notificationResult.success,
-      notificationsSent: notificationResult.sent || 0
+  const cancelledItems = itemsRequiringShipment.filter(
+    item => item.shippingStatus === 'CANCELLED'
+  )
+
+  const bypassItems = orderItems.filter(
+    item => item.product.partnerId === BYPASS_PARTNER_ID
+  )
+
+  return {
+    canComplete: pendingItems.length === 0 && cancelledItems.length === 0,
+    totalItems: orderItems.length,
+    itemsRequiringShipment: itemsRequiringShipment.length,
+    shippedItems: itemsRequiringShipment.filter(i => i.shippingStatus === 'SHIPPED').length,
+    deliveredItems: itemsRequiringShipment.filter(i => i.shippingStatus === 'DELIVERED').length,
+    bypassItems: bypassItems.length,
+    pendingItems: pendingItems.map(item => ({
+      id: item.id,
+      productName: item.product.name,
+      sku: item.product.sku,
+      status: item.shippingStatus,
+      partnerId: item.product.partnerId
+    })),
+    cancelledItems: cancelledItems.map(item => ({
+      id: item.id,
+      productName: item.product.name,
+      sku: item.product.sku,
+      status: item.shippingStatus
+    })),
+    itemsBreakdown: orderItems.map(item => ({
+      id: item.id,
+      productName: item.product.name,
+      sku: item.product.sku,
+      status: item.shippingStatus,
+      shippedBy: item.shippedBy,
+      shippedAt: item.shippedAt,
+      partnerId: item.product.partnerId,
+      isBypass: item.product.partnerId === BYPASS_PARTNER_ID
+    }))
+  }
+}
+
+/**
+ * Get shipment summary for admin dashboard
+ */
+export async function getOrderShipmentSummary(orderId: string) {
+  try {
+    const result = await canCompleteOrder(orderId)
+    return {
+      success: true,
+      data: result
     }
   } catch (error) {
-    console.error('Error marking order complete:', error)
+    console.error('Error getting shipment summary:', error)
+    return {
+      success: false,
+      error: 'Failed to get shipment summary'
+    }
+  }
+}
+
+/**
+ * Check if a partner ID should bypass shipment validation
+ */
+export async function isBypassPartner(partnerId: string): Promise<boolean> {
+  return partnerId === BYPASS_PARTNER_ID
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+// ORDER COMPLETION WITH VALIDATION
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Mark order as complete - ONLY if all non-bypass items are ready to ship
+ * Automatically marks all SHIPPED items as DELIVERED
+ */
+export async function markOrderComplete(orderId: string, customerPhone: string) {
+  try {
+    // STEP 1: Validate all items are ready (excluding bypass partner)
+    const validation = await canCompleteOrder(orderId)
+    
+    if (!validation.canComplete) {
+      const errorMsg = validation.pendingItems.length > 0
+        ? `Cannot complete order. ${validation.pendingItems.length} item(s) not yet ready to ship by partners.`
+        : `Cannot complete order. Order has ${validation.cancelledItems.length} cancelled item(s).`
+      
+      return { 
+        success: false, 
+        error: errorMsg,
+        pendingItems: validation.pendingItems,
+        cancelledItems: validation.cancelledItems
+      }
+    }
+
+    // STEP 2: Update order and all items in a transaction
+    const [updatedOrder] = await prisma.$transaction([
+      // Update order status
+      prisma.order.update({
+        where: { id: orderId },
+        data: {
+          delivered: true,
+          complete: true,
+          updatedAt: new Date()
+        }
+      }),
+      // Mark all shipped items as delivered
+      prisma.orderItem.updateMany({
+        where: { 
+          orderId,
+          shippingStatus: 'SHIPPED'
+        },
+        data: {
+          shippingStatus: 'DELIVERED'
+        }
+      })
+    ])
+
+    // STEP 3: Send notification to customer
+    let notificationSent = false
+    let notificationCount = 0
+
+    try {
+      const notificationResult = await sendNotificationToCustomerByPhone(
+        customerPhone,
+        {
+          title: 'Order Completed! 🎉',
+          body: `Your order #${orderId.slice(-6)} has been completed. Thank you for your order!`,
+          icon: '/icons/order-completed.png',
+          data: { orderId, type: 'order_completed' }
+        }
+      )
+      notificationSent = notificationResult.success
+      notificationCount = notificationResult.sent || 0
+    } catch (notifError) {
+      console.error('Notification failed (non-critical):', notifError)
+    }
+
+    // STEP 4: Revalidate pages
+    revalidatePath(`/admin/orders/${orderId}`)
+    revalidatePath('/admin/orders')
+    
+    return { 
+      success: true, 
+      data: updatedOrder,
+      notificationSent,
+      notificationsSent: notificationCount
+    }
+  } catch (error) {
+    console.error('Error completing order:', error)
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to complete order' 
@@ -338,7 +475,10 @@ export async function markOrderComplete(orderId: string, customerPhone: string) 
   }
 }
 
-// Alternative function for updating order status with notifications
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+// NOTIFICATIONS & STATUS UPDATES
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
 export async function updateOrderStatusWithNotification(
   orderId: string,
   status: 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'completed'
@@ -433,7 +573,6 @@ export async function updateOrderStatusWithNotification(
         return { success: false, error: 'Invalid status' }
     }
 
-    // Update order
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: updateData,
@@ -442,13 +581,11 @@ export async function updateOrderStatusWithNotification(
       }
     })
 
-    // Send notification
     const notificationResult = await sendNotificationToCustomerByPhone(
       order.customer.phone,
       notificationPayload
     )
 
-    // Revalidate pages
     revalidatePath('/admin/orders')
     revalidatePath(`/admin/orders/${orderId}`)
 

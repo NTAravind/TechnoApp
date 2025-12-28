@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getCategories } from '../actions/category'
+import { getCategories } from '@/app/admin/actions/category'
 
 async function CategoriesList() {
   const categories = await getCategories()
