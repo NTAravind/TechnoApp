@@ -1,4 +1,4 @@
-// app/categories/page.tsx
+ 
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, Package, Calendar, Eye } from 'lucide-react'

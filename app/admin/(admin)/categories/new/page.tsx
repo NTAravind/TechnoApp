@@ -1,6 +1,6 @@
 // app/admin/categories/new/page.tsx
 
-import { CategoryForm } from "../../components/categories/Categoryform"
+import { CategoryForm } from "@/app/admin/components/categories/Categoryform"
 
 export default async function NewCategoryPage() {
   return (
