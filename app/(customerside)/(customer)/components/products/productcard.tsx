@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ShoppingCart, Package } from 'lucide-react'
-import AddToCart from '@/app/(customerside)/components/products/Addtocart'
+import AddToCart from '@/app/(customerside)/(customer)/components/products/Addtocart'
 
 interface Product {
   id: number

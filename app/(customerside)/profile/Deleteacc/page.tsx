@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
-import DeleteProfileForm from '../../components/delete-acc-section'
+import DeleteProfileForm from '../../(customer)/components/delete-acc-section'
 import { ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 

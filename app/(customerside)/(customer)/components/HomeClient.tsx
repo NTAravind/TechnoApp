@@ -27,8 +27,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ModernSearchSystem } from '@/app/(customerside)/components/products/ModernBar'
-import ProductCard from '@/app/(customerside)/components/products/productcard'
+import { ModernSearchSystem } from '@/app/(customerside)/(customer)/components/products/ModernBar'
+import ProductCard from '@/app/(customerside)/(customer)/components/products/productcard'
 import Image from 'next/image'
 
 // Dynamic imports to prevent SSR issues
@@ -36,7 +36,7 @@ import dynamic from 'next/dynamic'
 
 // Note: Update your PushNotification component to accept onClose prop
 const NotificationSubscriptionPrompt = dynamic(
-  () => import('@/app/(customerside)/components/PushNotification'),
+  () => import('@/app/(customerside)/(customer)/components/PushNotification'),
   { 
     ssr: false,
     loading: () => null

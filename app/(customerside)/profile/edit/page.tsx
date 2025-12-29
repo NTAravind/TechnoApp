@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 
 
 import { prisma } from '@/lib/prisma'
-import ClientProfileForm from '@/app/(customerside)/components/customerform'
+import ClientProfileForm from '@/app/(customerside)/(customer)/components/customerform'
 import { auth } from '@/auth'
 
 async function getCustomerProfile(phone: string) {

@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import ProductCard from '@/app/(customerside)/components/products/productcard'
+import ProductCard from '@/app/(customerside)/(customer)/components/products/productcard'
 import CategoryFilter from '../components/Category'
 import { ModernSearchSystem } from '../components/products/ModernBar'
 import { Card, CardContent } from '@/components/ui/card'

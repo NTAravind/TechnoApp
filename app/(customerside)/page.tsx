@@ -2,7 +2,7 @@ import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { unstable_cache } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { HomePageClient } from './components/HomeClient'
+import { HomePageClient } from './(customer)/components/HomeClient'
 import type { Metadata } from 'next'
 
 // Static category mappings for better mobile experience and fallback

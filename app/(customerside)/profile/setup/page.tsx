@@ -2,7 +2,7 @@ import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
-import ClientProfileForm from '@/app/(customerside)/components/customerform'
+import ClientProfileForm from '@/app/(customerside)/(customer)/components/customerform'
 
 export default async function ProfileSetupPage() {
   const session = await auth()

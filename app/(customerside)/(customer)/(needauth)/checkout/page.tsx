@@ -1,4 +1,4 @@
-import { auth } from "../../../../auth";
+import { auth } from "../../../../../auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import prisma from "@/lib/prisma";
