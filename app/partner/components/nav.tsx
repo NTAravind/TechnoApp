@@ -25,7 +25,7 @@ export default function PartnerDock({ session }: { session: any }) {
           <div className="flex items-center gap-6">
             {/* Logo */}
             <Link href="/partner" className="flex items-center gap-3">
-              <Image src="/logo.svg" alt="Techno Logo" width={48} height={48} className="rounded-md object-cover" />
+              <Image src="/logo.svg" alt="Techno Logo" width={48} height={48  } className="rounded-md object-cover" />
               <span className="font-bold text-lg hidden sm:block">Partner Portal</span>
             </Link>
 
