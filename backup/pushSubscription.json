@@ -1,0 +1,24 @@
+[
+  {
+    "id": 2,
+    "endpoint": "https://fcm.googleapis.com/fcm/send/cJ_azmp2WNM:APA91bGKN0FxbFv3qm2vetRijvpKdM2-xm4HeA0T06idEG652i6e-f76io5IiOGe_H27W9YBbb4YdDySM8b7EdmXGrhms5o2aeXj0cL_dFWS0pVuOm2I1xa16PrGT7L3uKX7Qit3qrpR",
+    "keys": {
+      "auth": "RwX+v3W0NzN4VwYD9rO67g==",
+      "p256dh": "BJZT9yW4ya9zEbd4tDGaM99fMMhac2jFJbyXCjmVii4UlW4Jl/3f3Z6sKfnGCgWyJpYdOe/0wgMRfz73RjgJSW0="
+    },
+    "customerId": "9945631341",
+    "createdAt": "2025-12-31T15:06:10.138Z",
+    "updatedAt": "2025-12-31T15:06:10.138Z"
+  },
+  {
+    "id": 3,
+    "endpoint": "https://fcm.googleapis.com/fcm/send/cuzio3hErJY:APA91bGYRXUPneJGSiHnzbKepcR9Xl7uJ8831IXnJ-858jZFdZh1H_DA0iy_Pv7TLxbq5SWoTX09WhlJoJtAWqWnK7FFy4GuX7KqBGXi-Kii2JE27TppV9_bVyXg3lL_9BBz5fFxRj1R",
+    "keys": {
+      "auth": "la1uakXKKmgDVUCLZMyrWQ==",
+      "p256dh": "BMoC6b4K/JbiGgMfaPo4AWqyVRDR4o/6JX4odQo5fxLamqi+cMvmJsk3j5zx7Ta0WS021tmc9AodTo/QUritRmY="
+    },
+    "customerId": "9113816630",
+    "createdAt": "2026-01-18T13:37:53.252Z",
+    "updatedAt": "2026-01-18T13:37:53.252Z"
+  }
+]

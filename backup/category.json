@@ -1,0 +1,56 @@
+[
+  {
+    "id": 1,
+    "name": "Drip Pipes",
+    "createdAt": "2025-12-29T05:56:19.390Z",
+    "updatedAt": "2025-12-29T05:56:19.390Z"
+  },
+  {
+    "id": 2,
+    "name": "Micro Tubes",
+    "createdAt": "2025-12-29T05:56:19.390Z",
+    "updatedAt": "2025-12-29T05:56:19.390Z"
+  },
+  {
+    "id": 3,
+    "name": "Drip Fittings",
+    "createdAt": "2025-12-29T05:56:19.390Z",
+    "updatedAt": "2025-12-29T05:56:19.390Z"
+  },
+  {
+    "id": 4,
+    "name": "PVC Fittings",
+    "createdAt": "2025-12-29T05:56:19.390Z",
+    "updatedAt": "2025-12-29T05:56:19.390Z"
+  },
+  {
+    "id": 5,
+    "name": "Thinners and Cleaners",
+    "createdAt": "2025-12-29T05:56:19.390Z",
+    "updatedAt": "2025-12-29T05:56:19.390Z"
+  },
+  {
+    "id": 6,
+    "name": "PVC Solvents",
+    "createdAt": "2025-12-29T05:56:19.390Z",
+    "updatedAt": "2025-12-29T05:56:19.390Z"
+  },
+  {
+    "id": 7,
+    "name": "Nursery Covers",
+    "createdAt": "2025-12-29T05:56:19.390Z",
+    "updatedAt": "2025-12-29T05:56:19.390Z"
+  },
+  {
+    "id": 8,
+    "name": "Rain Pipes",
+    "createdAt": "2025-12-29T05:56:19.390Z",
+    "updatedAt": "2025-12-29T05:56:19.390Z"
+  },
+  {
+    "id": 9,
+    "name": "Cleaning Solutions",
+    "createdAt": "2025-12-29T05:56:19.390Z",
+    "updatedAt": "2025-12-29T05:56:19.390Z"
+  }
+]

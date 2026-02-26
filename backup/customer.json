@@ -1,0 +1,35 @@
+[
+  {
+    "id": 1,
+    "name": "Aravind ",
+    "phone": "9019977375",
+    "email": "ntaravindnarayanan7@gmail.com",
+    "isDistributor": false,
+    "createdAt": "2025-12-29T06:36:10.899Z",
+    "updatedAt": "2025-12-29T06:36:10.899Z",
+    "Address": "17/6 po opp road",
+    "pincode": "560033"
+  },
+  {
+    "id": 2,
+    "name": "Bharath Kumar ",
+    "phone": "9945631341",
+    "email": "bharath6251@gmail.com",
+    "isDistributor": false,
+    "createdAt": "2025-12-31T15:05:37.174Z",
+    "updatedAt": "2025-12-31T15:05:37.174Z",
+    "Address": "Hosadurga ",
+    "pincode": "577527"
+  },
+  {
+    "id": 3,
+    "name": "Smriti",
+    "phone": "9113816630",
+    "email": "smritinukula16@gmail.com",
+    "isDistributor": false,
+    "createdAt": "2026-01-04T12:41:19.549Z",
+    "updatedAt": "2026-01-04T12:41:19.549Z",
+    "Address": "1913 31st Cross Road Banashankari Stage II Banashankari",
+    "pincode": "560070"
+  }
+]
