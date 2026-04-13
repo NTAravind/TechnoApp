@@ -3,14 +3,25 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 
+export interface PushSubscriptionData {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
+
 export async function subscribeUserToPushNotifications(
-  token: string,
+  subscription: PushSubscriptionData | string,
   customerId: string
 ) {
   try {
+    const token = typeof subscription === 'string' ? subscription : subscription.endpoint;
+    
     if (!token) {
       return { success: false, error: 'Invalid token data' }
     }
+
     if (!customerId) {
       return { success: false, error: 'Invalid customer ID' }
     }
