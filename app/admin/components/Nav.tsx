@@ -8,7 +8,8 @@ import {
   FolderOpen,
   Home,
   Bell,
-  Handshake
+  Handshake,
+  Truck
 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -30,7 +31,8 @@ const NavigationDock = () => {
     { id: 'categories', label: 'Categories', icon: FolderOpen, href: '/admin/categories' },
     { id: 'customers', label: 'Customers', icon: Users, href: '/admin/customers' },
     { id: 'partner', label: 'Partners', icon: Handshake, href: '/admin/partner' },
-        { id: 'notification', label: 'notifications', icon: Bell, href: '/admin/notification' },
+    { id: 'delivery', label: 'Delivery', icon: Truck, href: '/admin/delivery-settings' },
+    { id: 'notification', label: 'notifications', icon: Bell, href: '/admin/notification' },
   ];
 
   const handleNavigation = (href: string) => {

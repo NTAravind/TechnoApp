@@ -56,6 +56,10 @@ export function NavBar() {
     { href: '/orders', icon: Package, label: 'Orders', isActive: isActive('/orders') },
   ], [isActive])
 
+  if (pathname?.startsWith('/profile') || pathname?.startsWith('/login')) {
+    return null
+  }
+
   return (
     <>
       {/* Mobile Bottom Dock Navigation */}

@@ -499,71 +499,56 @@ export function HomePageClient({
   useEffect(() => {
     if (!isClient) return
 
+    let isMounted = true
+    let registration: ServiceWorkerRegistration | null = null
+
     const checkNotificationStatus = async () => {
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-        try {
-          const registration = await navigator.serviceWorker.register('/sw.js', {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        if (isMounted) {
+          setHasNotificationPrompt(false)
+          setIsNotificationSubscribed(false)
+        }
+        return
+      }
+
+      try {
+        if (!registration) {
+          registration = await navigator.serviceWorker.register('/sw.js', {
             scope: '/',
             updateViaCache: 'none',
           })
-          const existingSub = await registration.pushManager.getSubscription()
-          
-          setIsNotificationSubscribed(!!existingSub)
-          
-          const shouldShowPrompt = !existingSub && 
-            Notification.permission !== 'denied' && 
-            localStorage.getItem('notification-prompt-permanently-dismissed') !== 'true'
-          
-          setHasNotificationPrompt(shouldShowPrompt)
-          
-          // REMOVED: Auto-show modal - only show when user clicks bell icon
-        } catch (error) {
-          console.error('Error checking notification status:', error)
-          setHasNotificationPrompt(false)
         }
-      } else {
-        setHasNotificationPrompt(false)
+        
+        const existingSub = await registration.pushManager.getSubscription()
+        
+        if (!isMounted) return
+        
+        const subscribed = !!existingSub
+        setIsNotificationSubscribed(subscribed)
+        
+        const isPermanentlyDismissed = localStorage.getItem('notification-prompt-permanently-dismissed') === 'true'
+        const shouldShowPrompt = !subscribed && Notification.permission !== 'denied' && !isPermanentlyDismissed
+        
+        setHasNotificationPrompt(shouldShowPrompt)
+        
+        if (shouldShowPrompt) {
+          setShowNotificationModal(true)
+        }
+      } catch (error) {
+        console.error('Error checking notification status:', error)
+        if (isMounted) {
+          setHasNotificationPrompt(false)
+          setIsNotificationSubscribed(false)
+        }
       }
     }
 
     checkNotificationStatus()
-  }, [isClient])
-// Inside HomePageClient (the big component you posted first)
 
-useEffect(() => {
-  if (!isClient) return;
-
-  const checkNotificationStatus = async () => {
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-      try {
-        const registration = await navigator.serviceWorker.register('/sw.js', {
-          scope: '/',
-          updateViaCache: 'none',
-        });
-        const existingSub = await registration.pushManager.getSubscription();
-
-        const subscribed = !!existingSub;
-        setIsNotificationSubscribed(subscribed);
-        setHasNotificationPrompt(!subscribed && Notification.permission !== 'denied' &&
-          localStorage.getItem('notification-prompt-permanently-dismissed') !== 'true');
-
-        // NEW: auto-open the modal if the user is NOT subscribed
-        if (!subscribed && Notification.permission !== 'denied' &&
-            localStorage.getItem('notification-prompt-permanently-dismissed') !== 'true') {
-          setShowNotificationModal(true);
-        }
-
-      } catch (error) {
-        console.error('Error checking notification status:', error);
-        setHasNotificationPrompt(false);
-      }
-    } else {
-      setHasNotificationPrompt(false);
+    return () => {
+      isMounted = false
     }
-  };
-
-  checkNotificationStatus();
-}, [isClient]);
+  }, [isClient])
   useEffect(() => {
     if (!isClient) return
 

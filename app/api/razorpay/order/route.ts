@@ -5,9 +5,10 @@ import { GetProductPrice } from "@/lib/productActions";
 import prisma from "@/lib/prisma";
 import crypto from "crypto";
 import { v4 as uuidv4 } from 'uuid';
+import { calculateDeliveryCharge } from "@/lib/deliveryCharge";
 
 // Helper function to calculate order totals consistently
-function calculateOrderTotals(cartitems: any[], products: any[], isDistributor: boolean) {
+async function calculateOrderTotals(cartitems: any[], products: any[], isDistributor: boolean, pincode?: string) {
   // Calculate subtotal
   const subtotal = cartitems.reduce((total: number, orderItem: any) => {
     const product = products.find((p: any) => p.id === orderItem.productId);
@@ -22,9 +23,29 @@ function calculateOrderTotals(cartitems: any[], products: any[], isDistributor: 
   const distributorDiscount = isDistributor ? subtotal * 0.1 : 0;
   const subtotalAfterDiscount = subtotal - distributorDiscount;
 
-  // Calculate delivery charge (8% of original subtotal before discount)
-  // Both COD and Online Payment have delivery charges
-  const deliveryCharge = subtotal * 0.08;
+  // Calculate delivery charge based on pincode settings
+  let deliveryCharge = 0;
+  let deliveryInfo: any = {};
+  
+  if (pincode) {
+    try {
+      const deliveryResult = await calculateDeliveryCharge(pincode, subtotal);
+      deliveryCharge = deliveryResult.deliveryCharge;
+      deliveryInfo = {
+        isFreeDelivery: deliveryResult.isFreeDelivery,
+        chargeType: deliveryResult.chargeType,
+        minCharge: deliveryResult.minCharge,
+        percentageCharge: deliveryResult.percentageCharge,
+        freeDeliveryAbove: deliveryResult.freeDeliveryAbove,
+        district: deliveryResult.pincodeInfo?.district,
+        state: deliveryResult.pincodeInfo?.state,
+      };
+    } catch (error) {
+      throw new Error("Delivery not available for this pincode");
+    }
+  } else {
+    deliveryCharge = subtotal * 0.08;
+  }
 
   // Calculate platform/service fee (4% on subtotal after discount)
   // Both COD and Online Payment have platform fees
@@ -39,7 +60,8 @@ function calculateOrderTotals(cartitems: any[], products: any[], isDistributor: 
     subtotalAfterDiscount,
     deliveryCharge,
     platformFee,
-    totalAmount
+    totalAmount,
+    deliveryInfo
   };
 }
 
@@ -84,7 +106,7 @@ export async function POST(req: NextRequest) {
       const products = await GetProductPrice(productIds);
 
       // Calculate totals using helper function (same for both COD and online)
-      const totals = calculateOrderTotals(cartitems, products, customer.isDistributor);
+      const totals = await calculateOrderTotals(cartitems, products, customer.isDistributor, pincode);
 
       if (totals.totalAmount > 50000) {
         return NextResponse.json({ error: "Please prefer bulk order" }, { status: 501 });
@@ -279,12 +301,29 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "Customer not found" }, { status: 404 });
       }
 
-      // Server-side price verification
+      // Server-side price verification (use default delivery since pincode was validated at order creation)
       const productIds = cartitems.map((item: any) => item.productId);
       const serverProducts = await GetProductPrice(productIds);
 
-      // Calculate server-side totals using the same helper function
-      const serverTotals = calculateOrderTotals(cartitems, serverProducts, customer.isDistributor);
+      // Calculate server-side totals using the same helper function (without pincode for verification)
+      const subtotal = cartitems.reduce((total: number, orderItem: any) => {
+        const product = serverProducts.find((p: any) => p.id === orderItem.productId);
+        if (!product) throw new Error(`Product not found: ${orderItem.productId}`);
+        return total + product.price * orderItem.qty;
+      }, 0);
+
+      const distributorDiscount = customer.isDistributor ? subtotal * 0.1 : 0;
+      const subtotalAfterDiscount = subtotal - distributorDiscount;
+      const deliveryCharge = subtotal * 0.08; // Default 8% for verification
+      const platformFee = subtotalAfterDiscount * 0.04;
+      const serverTotals = {
+        subtotal,
+        distributorDiscount,
+        subtotalAfterDiscount,
+        deliveryCharge,
+        platformFee,
+        totalAmount: subtotalAfterDiscount + deliveryCharge + platformFee
+      };
 
       // Verify the Razorpay order amount matches our calculation
       if (razorpayOrder.amount !== Math.round(serverTotals.totalAmount * 100)) {

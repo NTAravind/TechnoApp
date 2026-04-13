@@ -23,7 +23,6 @@ export async function addToCart(productId: number, sizes: number[]) {
     
     // Here you would typically create order items or cart items
     // For now, we'll just log the action
-    console.log(`Adding product ${productId} with sizes ${sizes.join(', ')} to cart`)
     
     // If you have a cart/order system, you might do something like:
     // await prisma.orderItem.createMany({

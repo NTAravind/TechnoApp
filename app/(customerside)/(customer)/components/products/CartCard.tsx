@@ -29,12 +29,10 @@ export default function CartCard({ prop, isCompact = false }: CartCardProps) {
   }, [packageCount, prop.qty])
 
   const handleIncrement = useCallback(() => {
-    console.log('Incrementing:', { id: prop.item.id, name: prop.item.name, LooseSell: prop.item.LooseSell, packaging: prop.item.packaging })
     incrementQuantity(prop.item.id)
   }, [prop.item.id, prop.item.name, prop.item.LooseSell, prop.item.packaging, incrementQuantity])
 
   const handleDecrement = useCallback(() => {
-    console.log('Decrementing:', { id: prop.item.id, name: prop.item.name, LooseSell: prop.item.LooseSell, packaging: prop.item.packaging, currentQty: prop.qty })
     if (prop.qty > (prop.item.LooseSell ? 1 : (prop.item.packaging || 1))) {
       decrementQuantity(prop.item.id)
     } else {
@@ -43,14 +41,12 @@ export default function CartCard({ prop, isCompact = false }: CartCardProps) {
   }, [prop.qty, prop.item.id, prop.item.LooseSell, prop.item.packaging, decrementQuantity, RemoveProduct])
 
   const handleRemove = useCallback(() => {
-    console.log('Removing:', { id: prop.item.id, name: prop.item.name })
     RemoveProduct(prop.item.id)
   }, [prop.item.id, prop.item.name, RemoveProduct])
 
   const handleQuantityChange = useCallback((value: string) => {
     const newPackageCount = Math.max(1, parseInt(value, 10) || 1)
     const newQuantity = packageCount > 0 ? newPackageCount * (prop.item.packaging || 1) : newPackageCount
-    console.log('Quantity change:', { id: prop.item.id, newPackageCount, newQuantity })
     if (newQuantity !== prop.qty) {
       SetItemQuantity(prop.item.id, newQuantity)
     }

@@ -1,62 +1,77 @@
-// Register gcm_sender_id for legacy Android/TWA support (optional, if using Firebase)
 self.addEventListener('activate', (event) => {
-  // Optional: Claim clients for immediate control in TWA
   event.waitUntil(self.clients.claim());
 });
 
-// Handle push events
 self.addEventListener('push', function (event) {
-  let title = 'Order Update';
-  let body = 'You have a new notification.';
+  let title = 'TechnoApp';
+  let body = 'You have a new notification';
   let icon = '/icon-192x192.png';
   let badge = '/badge-72x72.png';
   let data = {};
 
   if (event.data) {
-    const payload = event.data.json();
-    title = payload.title || title;
-    body = payload.body || body;
-    icon = payload.icon || icon;
-    badge = payload.badge || badge;
-    data = payload.data || data;
+    try {
+      const payload = event.data.json();
+      title = payload.title || title;
+      body = payload.body || body;
+      icon = payload.icon || icon;
+      badge = payload.badge || badge;
+      data = payload.data || data;
+    } catch (e) {
+      console.warn('Failed to parse push data:', e);
+    }
   }
 
-  // Show notification
+  const options = {
+    body,
+    icon,
+    badge,
+    vibrate: [100, 50, 100],
+    data: {
+      dateOfArrival: Date.now(),
+      ...data
+    },
+    actions: [
+      { action: 'open', title: 'View' }
+    ],
+    requireInteraction: false,
+    silent: false
+  };
+
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon,
-      badge,
-      vibrate: [100, 50, 100],
-      data: {
-        dateOfArrival: Date.now(),
-        ...data
-      },
-      actions: [
-        { action: 'open', title: 'View Order' }
-      ]
-    })
+    self.registration.showNotification(title, options)
+      .catch(err => {
+        console.error('Failed to show notification:', err);
+      })
   );
 });
 
-// Handle notification clicks
 self.addEventListener('notificationclick', function (event) {
-  console.log('Notification click received.');
   event.notification.close();
 
-  // Open the app URL (TWA home)
+  const urlToOpen = event.notification.data?.url || '/';
+
   event.waitUntil(
-    clients.openWindow('/') // Or specific order URL from event.data
-      .then((client) => {
-        if (client) {
-          client.focus();
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if (client.url === urlToOpen && 'focus' in client) {
+            return client.focus();
+          }
         }
+        return clients.openWindow(urlToOpen);
       })
-      .catch((err) => console.error('Failed to open window:', err))
+      .catch((err) => {
+        console.error('Failed to open window:', err);
+        return clients.openWindow('/');
+      })
   );
 });
 
-// Handle notification action buttons (if any)
 self.addEventListener('notificationclose', function (event) {
-  console.log('Notification closed.');
+  console.log('Notification closed:', event.notification.title);
+});
+
+self.addEventListener('error', function (event) {
+  console.error('Service worker error:', event.error);
 });

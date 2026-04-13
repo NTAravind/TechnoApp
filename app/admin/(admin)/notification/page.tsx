@@ -270,7 +270,7 @@ export default function AdminNotificationsPage() {
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-gray-900">{stats.subscribedCustomers}</p>
-                    <p className="text-sm text-gray-600">Subscribed</p>
+                    <p className="text-sm text-gray-600">App Devices</p>
                   </div>
                 </div>
               </div>

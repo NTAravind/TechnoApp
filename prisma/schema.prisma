@@ -99,10 +99,45 @@ model Partner {
 }
   model PushSubscription {
   id         Int       @id @default(autoincrement())
-  endpoint   String    @unique
-  keys       Json
+  token      String    @unique
   customerId String?      // optional: link to your Customer
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   customer   Customer? @relation(fields: [customerId], references: [phone])
+}
+
+enum DeliveryChargeType {
+  FIXED      // Fixed minimum charge
+  PERCENTAGE // Percentage of cart total
+  BOTH       // Use whichever is higher (min charge or percentage)
+}
+
+model DeliverySettings {
+  id                Int               @id @default(autoincrement())
+  isActive          Boolean           @default(true)
+  chargeType        DeliveryChargeType @default(PERCENTAGE)
+  minCharge         Float              @default(0)      // Minimum delivery charge (for FIXED or BOTH types)
+  percentageCharge  Float              @default(8)     // Percentage to charge (for PERCENTAGE or BOTH types)
+  freeDeliveryAbove Float              @default(500)   // Free delivery above this amount
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model PincodeDelivery {
+  id                Int               @id @default(autoincrement())
+  pincode           String            @unique         // 6-digit pincode
+  regionName        String?                           // Region from CSV
+  divisionName      String?                           // Division from CSV
+  district          String?                           // District from CSV
+  stateName         String?                           // State from CSV
+  isDelivery        Boolean           @default(true)  // true = delivery available, false = no delivery
+  chargeType        DeliveryChargeType @default(PERCENTAGE) // Override default charge type
+  minCharge         Float?                           // Override minimum charge
+  percentageCharge  Float?                           // Override percentage charge
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([pincode])
+  @@index([district])
+  @@index([stateName])
 }

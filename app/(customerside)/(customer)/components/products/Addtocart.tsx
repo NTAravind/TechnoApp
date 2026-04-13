@@ -21,8 +21,6 @@ export default function AddToCart({ product }: AddToCartProps) {
     if (!product?.id || !product.name || !product.unit || product.price == null) {
       console.error('Invalid product data:', product)
     }
-    console.log('Product:', product)
-    console.log('Cart Items:', ProductCart.getState().cartItems)
   }, [product])
 
   const showToast = (message: string, description: string) => {

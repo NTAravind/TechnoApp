@@ -77,6 +77,18 @@ interface Customer {
   pincode: string | null;
 }
 
+interface PincodeValidation {
+  valid: boolean;
+  error?: string;
+  district?: string;
+  state?: string;
+  chargeType?: string;
+  minCharge?: number;
+  percentageCharge?: number;
+  freeDeliveryAbove?: number;
+  isFreeDelivery?: boolean;
+}
+
 // Lazy load AlertDialog
 interface AlertDialogProps {
   open?: boolean;
@@ -385,10 +397,12 @@ const OrderSummary = memo(function OrderSummary({
   user,
   showAlert,
   del,
+  pincodeValidation,
 }: {
   user: UserData
   showAlert: (title: string, description: string, type?: 'success' | 'error' | 'warning', onConfirm?: () => void, showCancel?: boolean) => void
   del: boolean
+  pincodeValidation?: PincodeValidation | null
 }) {
   const { cartItems, RemoveProduct, getBasketCount, getTotalPrice } = ProductCart()
   const itemCount = getBasketCount()
@@ -427,8 +441,8 @@ const OrderSummary = memo(function OrderSummary({
             </div>
 
             <div className="border-t border-gray-100 pt-4">
-              <PriceBreakdown user={user} deliveryMode={del} />
-              <PurchaseButton user={user} showAlert={showAlert} del={del} />
+              <PriceBreakdown user={user} deliveryMode={del} pincodeValidation={pincodeValidation} />
+              <PurchaseButton user={user} showAlert={showAlert} del={del} pincodeValidation={pincodeValidation} />
             </div>
           </>
         )}
@@ -437,7 +451,7 @@ const OrderSummary = memo(function OrderSummary({
   )
 })
 
-const PriceBreakdown = memo(function PriceBreakdown({ user, deliveryMode }: { user: UserData; deliveryMode: boolean }) {
+const PriceBreakdown = memo(function PriceBreakdown({ user, deliveryMode, pincodeValidation }: { user: UserData; deliveryMode: boolean; pincodeValidation?: PincodeValidation }) {
   const { getTotalPrice } = ProductCart()
   const subtotal = getTotalPrice()
   
@@ -446,19 +460,49 @@ const PriceBreakdown = memo(function PriceBreakdown({ user, deliveryMode }: { us
   }, [user.us?.isDistributor, subtotal])
 
   const subtotalAfterDiscount = subtotal - distributorDiscount
-const deliveryCharge = useMemo(() => {
-  // Both COD and Online Delivery have 8% delivery charge
-  return subtotal * 0.08
-}, [subtotal])
+  
+  const deliveryCharge = useMemo(() => {
+    if (!deliveryMode) return 0;
+    if (pincodeValidation?.isFreeDelivery) return 0;
+    
+    const percentage = pincodeValidation?.percentageCharge ?? 8;
+    const minCharge = pincodeValidation?.minCharge ?? 0;
+    const chargeType = pincodeValidation?.chargeType ?? 'PERCENTAGE';
+    
+    if (chargeType === 'FIXED') {
+      return minCharge;
+    } else if (chargeType === 'BOTH') {
+      const percentageCharge = (subtotal * percentage) / 100;
+      return Math.max(minCharge, percentageCharge);
+    } else {
+      return (subtotal * percentage) / 100;
+    }
+  }, [subtotal, deliveryMode, pincodeValidation])
 
-const platformFee = useMemo(() => {
-  // Platform fee applies to both delivery modes now
-  return subtotalAfterDiscount * 0.04
-}, [subtotalAfterDiscount])
+  const platformFee = useMemo(() => {
+    return subtotalAfterDiscount * 0.04
+  }, [subtotalAfterDiscount])
 
   const total = subtotalAfterDiscount + deliveryCharge + platformFee
   
   const isBulkOrder = subtotal > 50000
+
+  const getDeliveryChargeLabel = () => {
+    if (!deliveryMode) return 'Delivery:';
+    if (!pincodeValidation?.valid) return 'Delivery:';
+    if (pincodeValidation.isFreeDelivery) return 'Delivery (Free):';
+    
+    const chargeType = pincodeValidation.chargeType ?? 'PERCENTAGE';
+    const percentage = pincodeValidation.percentageCharge ?? 8;
+    
+    if (chargeType === 'FIXED') {
+      return `Delivery (Fixed):`;
+    } else if (chargeType === 'BOTH') {
+      return `Delivery (${percentage}% or min):`;
+    } else {
+      return `Delivery (${percentage}%):`;
+    }
+  };
 
   return (
     <div className="space-y-3 mb-6">
@@ -481,21 +525,33 @@ const platformFee = useMemo(() => {
 
       <div className="flex justify-between text-sm">
         <span className="text-gray-600 flex items-center gap-1">
-  <Truck className="h-4 w-4" />
-  Delivery Charge (8%):
-</span>
+          <Truck className="h-4 w-4" />
+          {getDeliveryChargeLabel()}
+        </span>
         <span className="font-medium">
-          {deliveryMode ? fcurrency(deliveryCharge) : 'Free'}
+          {deliveryMode ? (pincodeValidation?.isFreeDelivery ? 'Free' : fcurrency(deliveryCharge)) : 'Free'}
         </span>
       </div>
 
-      {deliveryMode && (
+      {deliveryMode && pincodeValidation?.valid && pincodeValidation.percentageCharge && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 my-3">
           <div className="flex items-center gap-2">
             <Truck className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium text-blue-800">Delivery charges apply</span>
+            <span className="text-sm font-medium text-blue-800">Delivery to {pincodeValidation.district || pincodeValidation.state || 'your area'}</span>
           </div>
-          <p className="text-xs text-blue-700 mt-1">Delivery charge is calculated as 8% of your cart value</p>
+          {pincodeValidation.isFreeDelivery && (
+            <p className="text-xs text-blue-700 mt-1">Free delivery on orders above ₹{pincodeValidation.freeDeliveryAbove}</p>
+          )}
+        </div>
+      )}
+
+      {deliveryMode && pincodeValidation?.valid === false && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 my-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-600" />
+            <span className="text-sm font-medium text-red-800">Delivery not available</span>
+          </div>
+          <p className="text-xs text-red-700 mt-1">{pincodeValidation.error || 'This pincode is not serviceable'}</p>
         </div>
       )}
 
@@ -548,7 +604,6 @@ const ProductCard = memo(function ProductCard({
   }, [packageCount, item.qty])
 
   const handleRemove = useCallback(() => {
-    console.log('Removing:', { id: item.item.id, name: item.item.name })
     onRemove(item.item.id)
   }, [onRemove, item.item.id])
 
@@ -621,10 +676,12 @@ function PurchaseButton({
   user,
   showAlert,
   del,
+  pincodeValidation,
 }: {
   user: UserData;
   showAlert: (title: string, description: string, type?: 'success' | 'error' | 'warning', onConfirm?: () => void, showCancel?: boolean) => void;
   del: boolean; // true = online payment, false = COD
+  pincodeValidation?: PincodeValidation | null;
 }) {
   const [isPending, setPending] = useState(false);
   const [showBulkDialog, setShowBulkDialog] = useState(false);
@@ -634,7 +691,24 @@ function PurchaseButton({
   const { cartItems, getTotalPrice, ClearBasket } = ProductCart();
   const router = useRouter();
   const subtotal = getTotalPrice();
-  const deliveryCharge = useMemo(() => subtotal * 0.08, [subtotal]);
+  
+  const deliveryCharge = useMemo(() => {
+    if (!del) return 0;
+    if (pincodeValidation?.isFreeDelivery) return 0;
+    
+    const percentage = pincodeValidation?.percentageCharge ?? 8;
+    const minCharge = pincodeValidation?.minCharge ?? 0;
+    const chargeType = pincodeValidation?.chargeType ?? 'PERCENTAGE';
+    
+    if (chargeType === 'FIXED') {
+      return minCharge;
+    } else if (chargeType === 'BOTH') {
+      const percentageChargeAmount = (subtotal * percentage) / 100;
+      return Math.max(minCharge, percentageChargeAmount);
+    } else {
+      return (subtotal * percentage) / 100;
+    }
+  }, [subtotal, del, pincodeValidation]);
 
   const distributorDiscount = useMemo(() => {
     return user.us?.isDistributor ? subtotal * 0.1 : 0;
@@ -1075,6 +1149,8 @@ function CheckoutContent({ user }: { user: UserData }) {
   const [currentUser, setCurrentUser] = useState<UserData>(user);
   const [deliveryMode, setDeliveryMode] = useState(true);
   const [isClient, setIsClient] = useState(false);
+  const [pincodeValidation, setPincodeValidation] = useState<PincodeValidation | null>(null);
+  const [isValidatingPincode, setIsValidatingPincode] = useState(false);
   const [alertState, setAlertState] = useState<AlertState>({
     isOpen: false,
     title: '',
@@ -1092,6 +1168,42 @@ function CheckoutContent({ user }: { user: UserData }) {
       setIsEditing(true);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user.us?.pincode && user.us.pincode.length === 6) {
+      validatePincode(user.us.pincode);
+    }
+  }, [user.us?.pincode]);
+
+  const validatePincode = useCallback(async (pincode: string) => {
+    if (!pincode || pincode.length !== 6) {
+      setPincodeValidation({ valid: false, error: 'Please enter a valid 6-digit pincode' });
+      return;
+    }
+
+    setIsValidatingPincode(true);
+    try {
+      const response = await fetch(`/api/pincode?pincode=${pincode}`);
+      const data = await response.json();
+      setPincodeValidation(data);
+    } catch (error) {
+      console.error('Pincode validation error:', error);
+      setPincodeValidation({ valid: false, error: 'Failed to validate pincode. Please try again.' });
+    } finally {
+      setIsValidatingPincode(false);
+    }
+  }, []);
+
+  const debouncedValidatePincode = useMemo(
+    () => debounce((pincode: string) => validatePincode(pincode), 500),
+    [validatePincode]
+  );
+
+  useEffect(() => {
+    return () => {
+      debouncedValidatePincode.cancel();
+    };
+  }, [debouncedValidatePincode]);
 
   useEffect(() => {
     setAlertState({
@@ -1117,8 +1229,11 @@ function CheckoutContent({ user }: { user: UserData }) {
       if (updatedUser.name && updatedUser.Address && (!deliveryMode || updatedUser.pincode)) {
         setIsEditing(false);
       }
+      if (updatedUser.pincode) {
+        validatePincode(updatedUser.pincode);
+      }
     },
-    [currentUser, deliveryMode]
+    [currentUser, deliveryMode, validatePincode]
   );
 
   if (!isClient) {
@@ -1164,7 +1279,7 @@ function CheckoutContent({ user }: { user: UserData }) {
             </div>
 
             <div className="lg:col-span-1">
-              <OrderSummary user={currentUser} showAlert={showAlert} del={deliveryMode} />
+              <OrderSummary user={currentUser} showAlert={showAlert} del={deliveryMode} pincodeValidation={pincodeValidation} />
             </div>
           </div>
         </div>

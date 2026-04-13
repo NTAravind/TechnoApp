@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
+import { NavBar } from "./(customer)/components/products/Nav";
 
- 
- 
- 
+
+
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,21 +22,19 @@ export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>)
-
-{
+}>) {
   return (
     <div className="bg-green-50">
       <SessionProvider>
-     
-   
-   <main className="pb-20 lg:pb-0"> {/* Adds 20 units of padding-bottom on mobile, none on large screens */}
+
+
+        <main className="pb-20 lg:pb-0"> {/* Adds 20 units of padding-bottom on mobile, none on large screens */}
           {children}
         </main>
- 
-       
+        <NavBar />
+
       </SessionProvider>
-     
+
     </div>
   );
 }

@@ -3,38 +3,35 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 
-export interface PushSubscriptionData {
-  endpoint: string
-  keys: {
-    p256dh: string
-    auth: string
-  }
-}
-
 export async function subscribeUserToPushNotifications(
-  subscription: PushSubscriptionData,
+  token: string,
   customerId: string
 ) {
   try {
-    // Validate input
-    if (!subscription.endpoint || !subscription.keys.p256dh || !subscription.keys.auth) {
-      return { success: false, error: 'Invalid subscription data' }
+    if (!token) {
+      return { success: false, error: 'Invalid token data' }
     }
     if (!customerId) {
       return { success: false, error: 'Invalid customer ID' }
     }
 
-    // Use transaction for atomic operations
+    const customer = await prisma.customer.findUnique({
+      where: { phone: customerId }
+    })
+
+    if (!customer) {
+      return { success: false, error: 'Customer not found' }
+    }
+
     return await prisma.$transaction(async (tx) => {
-      // Check if subscription already exists
       const existingSubscription = await tx.pushSubscription.findUnique({
-        where: { endpoint: subscription.endpoint }
+        where: { token }
       })
 
       if (existingSubscription) {
         if (existingSubscription.customerId !== customerId) {
           const updatedSubscription = await tx.pushSubscription.update({
-            where: { endpoint: subscription.endpoint },
+            where: { token },
             data: { customerId }
           })
           revalidatePath('/')
@@ -43,11 +40,9 @@ export async function subscribeUserToPushNotifications(
         return { success: true, subscription: existingSubscription }
       }
 
-      // Create new subscription
       const newSubscription = await tx.pushSubscription.create({
         data: {
-          endpoint: subscription.endpoint,
-          keys: subscription.keys,
+          token,
           customerId
         }
       })
@@ -62,19 +57,17 @@ export async function subscribeUserToPushNotifications(
 }
 
 export async function unsubscribeUserFromPushNotifications(
-  subscription: PushSubscriptionData
+  token: string
 ) {
   try {
-    // Validate input
-    if (!subscription.endpoint) {
-      return { success: false, error: 'Invalid subscription endpoint' }
+    if (!token) {
+      return { success: false, error: 'Invalid token' }
     }
 
-    // Use transaction for atomic operations
     return await prisma.$transaction(async (tx) => {
       const deletedSubscription = await tx.pushSubscription.delete({
-        where: { endpoint: subscription.endpoint }
-      }).catch(() => null) // Ignore if not found
+        where: { token }
+      }).catch(() => null)
 
       revalidatePath('/')
       return { success: !!deletedSubscription, subscription: deletedSubscription || null }
@@ -87,12 +80,10 @@ export async function unsubscribeUserFromPushNotifications(
 
 export async function unsubscribeAllCustomerSubscriptions(customerId: string) {
   try {
-    // Validate input
     if (!customerId) {
       return { success: false, error: 'Invalid customer ID' }
     }
 
-    // Delete all subscriptions for this customer
     const result = await prisma.pushSubscription.deleteMany({
       where: { customerId }
     })
@@ -107,7 +98,6 @@ export async function unsubscribeAllCustomerSubscriptions(customerId: string) {
 
 export async function getCustomerSubscriptionByPhone(customerPhone: string) {
   try {
-    // Validate input
     if (!customerPhone) {
       return { success: false, error: 'Invalid customer phone' }
     }
@@ -133,7 +123,6 @@ export async function getCustomerSubscriptionByPhone(customerPhone: string) {
 
 export async function getAllCustomerSubscriptions(customerId: string) {
   try {
-    // Validate input
     if (!customerId) {
       return { success: false, error: 'Invalid customer ID' }
     }
@@ -149,15 +138,14 @@ export async function getAllCustomerSubscriptions(customerId: string) {
   }
 }
 
-export async function checkSubscriptionExists(endpoint: string) {
+export async function checkSubscriptionExists(token: string) {
   try {
-    // Validate input
-    if (!endpoint) {
-      return { success: false, error: 'Invalid endpoint' }
+    if (!token) {
+      return { success: false, error: 'Invalid token' }
     }
 
     const subscription = await prisma.pushSubscription.findUnique({
-      where: { endpoint }
+      where: { token }
     })
 
     return { success: true, exists: !!subscription, subscription }
@@ -165,4 +153,48 @@ export async function checkSubscriptionExists(endpoint: string) {
     console.error('Error checking subscription:', error)
     return { success: false, error: 'Failed to check subscription' }
   } 
+}
+
+export async function getSubscriptionByToken(token: string) {
+  try {
+    if (!token) {
+      return { success: false, error: 'Invalid token' }
+    }
+
+    const subscription = await prisma.pushSubscription.findUnique({
+      where: { token },
+      include: { customer: { select: { id: true, name: true, phone: true } } }
+    })
+
+    if (!subscription) {
+      return { success: false, error: 'Subscription not found' }
+    }
+
+    return { success: true, subscription }
+  } catch (error) {
+    console.error('Error fetching subscription:', error)
+    return { success: false, error: 'Failed to fetch subscription' }
+  }
+}
+
+export async function cleanupOrphanedSubscriptions() {
+  try {
+    const orphanedSubscriptions = await prisma.pushSubscription.findMany({
+      where: { customerId: null }
+    })
+
+    if (orphanedSubscriptions.length === 0) {
+      return { success: true, deleted: 0 }
+    }
+
+    const result = await prisma.pushSubscription.deleteMany({
+      where: { customerId: null }
+    })
+
+    revalidatePath('/')
+    return { success: true, deleted: result.count }
+  } catch (error) {
+    console.error('Error cleaning up orphaned subscriptions:', error)
+    return { success: false, error: 'Failed to cleanup subscriptions' }
+  }
 }

@@ -237,7 +237,7 @@ export async function sendTestNotification(adminPhone: string, notificationData:
     return {
       success: result.success,
       sent: result.sent || 0,
-      error: result.error
+      error: result.errors?.[0] || (result.success ? undefined : 'Failed to send notification')
     }
   } catch (error) {
     console.error('Error sending test notification:', error)
@@ -245,24 +245,11 @@ export async function sendTestNotification(adminPhone: string, notificationData:
   }
 }
 
-// Get notification history (you might want to create a NotificationLog model)
 export async function getNotificationHistory(limit: number = 50) {
   try {
-    // For now, we'll return a mock history
-    // In a real implementation, you'd want to store notification logs in the database
     return {
       success: true,
-      history: [
-        {
-          id: 1,
-          title: 'New Product Launch',
-          message: 'Check out our latest organic products!',
-          targetType: 'all',
-          sentAt: new Date(),
-          recipientCount: 150,
-          deliveredCount: 142
-        }
-      ]
+      history: []
     }
   } catch (error) {
     console.error('Error fetching notification history:', error)
