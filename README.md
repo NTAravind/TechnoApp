@@ -1,38 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Techno Industries — B2B E-commerce Platform
 
-## Getting Started
+A Next.js 15 (App Router) storefront + back office for a wholesale/industrial goods business. Customers browse products, order with OTP login, and pay via Razorpay; admins manage catalog, orders and delivery pricing; partner vendors ship their own order items. Ships as a PWA / Android TWA.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Next.js 15.4** (App Router, React 19, Server Actions), TypeScript
+- **Prisma 6 + PostgreSQL** (client generated into `app/generated/prisma`)
+- **NextAuth v5** (JWT sessions) for customers and partners
+- **Tailwind CSS 4 + Radix UI / shadcn-style components** (`components/ui`)
+- **Razorpay** payments, **web-push/VAPID** notifications, **WhatsApp Cloud API**
+- `zustand` (cart store), `@tanstack/react-table`, `zod`, `papaparse` (pincode CSV import)
+
+## Layout
+
+```
+app/
+  (customerside)/   storefront: home, products, cart, checkout, orders, refund, profile
+  admin/            admin dashboard (products, categories, orders, customers,
+                    delivery-settings, notifications, CSV/JSON export)
+  partner/          vendor portal (login via NextAuth, sees own products/orders)
+  api/              route handlers: auth, razorpay (order/verify), OTP, catalog,
+                    checkout, orders, push-token, delivery settings, pincodes
+lib/                prisma client, server actions per domain, auth helpers, cart store
+prisma/             schema, migrations, seeds (incl. pincode seeder)
+middleware.ts       HTTP Basic auth for /admin, NextAuth guard for /partner
+auth.ts             NextAuth config: customer OTP + partner credentials providers
+scripts/            DB backup utility (npm run backup)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Domain model (see `prisma/schema.prisma`)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`Category → Product → OrderItem ← Order ← Customer`, plus `Partner` (vendor, referenced by `Product.partnerId`) and delivery pricing models: `DeliverySettings` (global), `StateDelivery`, `PincodeDelivery` (per-pincode overrides, `isDelivery` flag). `PushSubscription` stores web-push endpoints.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Auth & access
 
-## Learn More
+- **Customers**: phone + OTP (`send-otp` / `verify-otp`, stored in `lib/otpstore.ts`). Test bypass: `9019997375` / `123456`.
+- **Partners**: username + bcrypt password; `/partner/*` guarded in middleware for `role === 'partner'`.
+- **Admin**: HTTP Basic auth using `ADMIN_USERNAME` + `HASHED_ADMIN_PASSWORD` (base64 SHA-512), checked in `middleware.ts`.
 
-To learn more about Next.js, take a look at the following resources:
+## Running locally
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npx prisma generate           # outputs client to app/generated/prisma
+npx prisma migrate deploy     # or: npx prisma migrate dev
+npm run dev                   # http://localhost:3000
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Optional: `node prisma/seed.js` (or `prisma/seed-pincodes.ts`) for sample data.
 
-## Deploy on Vercel
+## Environment variables (`.env`)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Required: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `BASEURL`, `NEXT_PUBLIC_BASEURL`,
+`ADMIN_USERNAME`, `HASHED_ADMIN_PASSWORD`,
+`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `NEXT_PUBLIC_RAZORKEY`,
+`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+`WHATSAPPENV` (Cloud API token), `WHATSAPPPHONE` (phone number ID),
+and `GITHUB_TOKEN` / `GITHUB_OWNER` / `GITHUB_REPO` for image hosting.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# technoIndustries
-# technoIndustries
+Admin password hash: `echo -n '<password>' | openssl dgst -sha512 -binary | base64`.
+
+## Notes
+
+- Server Actions in `app/admin/actions/*` and `lib/*-actions.ts` are the main mutation layer; `app/api/app/*` mirrors some of them for the mobile/TWA client.
+- Payments: `/api/razorpay/order` creates the order, `/api/razorpay/verify` confirms signature and marks the order paid.
+- Deploy target is a Node server (Coolify); `next.config.ts` whitelists GitHub/jsDelivr image hosts.

@@ -19,6 +19,7 @@ export async function calculateDeliveryCharge(
   pincode: string,
   cartSubtotal: number
 ): Promise<DeliveryChargeResult> {
+  // Get default settings as fallback
   const settings = await prisma.deliverySettings.findFirst();
   
   const defaultResult: DeliveryChargeResult = {
@@ -34,6 +35,7 @@ export async function calculateDeliveryCharge(
     return { ...defaultResult, isFreeDelivery: true, deliveryCharge: 0 };
   }
 
+  // Get pincode data
   const pincodeData = await prisma.pincodeDelivery.findUnique({
     where: { pincode }
   });
@@ -42,11 +44,34 @@ export async function calculateDeliveryCharge(
     throw new Error('Delivery not available for this pincode');
   }
 
-  const chargeType = pincodeData.chargeType || settings.chargeType;
-  const minCharge = pincodeData.minCharge ?? settings.minCharge;
-  const percentageCharge = pincodeData.percentageCharge ?? settings.percentageCharge;
-  const freeDeliveryAbove = settings.freeDeliveryAbove;
+  // Priority: Pincode overrides > State settings > Default settings
+  let chargeType = pincodeData.chargeType;
+  let minCharge = pincodeData.minCharge;
+  let percentageCharge = pincodeData.percentageCharge;
+  let freeDeliveryAbove = settings.freeDeliveryAbove;
 
+  // Check if pincode has specific overrides
+  const hasPincodeOverrides = pincodeData.minCharge !== null || pincodeData.percentageCharge !== null;
+
+  if (!hasPincodeOverrides && pincodeData.stateName) {
+    // Check state-level settings
+    const stateSettings = await prisma.stateDelivery.findUnique({
+      where: { stateName: pincodeData.stateName }
+    });
+
+    if (stateSettings && stateSettings.isActive) {
+      chargeType = stateSettings.chargeType;
+      minCharge = stateSettings.minCharge;
+      percentageCharge = stateSettings.percentageCharge;
+      freeDeliveryAbove = stateSettings.freeDeliveryAbove;
+    }
+  } else if (hasPincodeOverrides) {
+    // Use pincode-specific overrides
+    minCharge = pincodeData.minCharge ?? 0;
+    percentageCharge = pincodeData.percentageCharge ?? 8;
+  }
+
+  // Calculate delivery charge
   let deliveryCharge = 0;
   const isFreeDelivery = cartSubtotal >= freeDeliveryAbove;
 

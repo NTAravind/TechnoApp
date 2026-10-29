@@ -1,28 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { checkpass } from '@/lib/adminauth';
 
-async function isauthenticated(req: NextRequest) {
-  const authhead = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (!authhead) {
-    return false;
-  }
-
-  try {
-    const [username, pass] = Buffer.from(authhead.split(" ")[1], "base64").toString().split(":");
-    const usernameMatch = username === process.env.ADMIN_USERNAME;
-    const passwordMatch = await checkpass(pass, process.env.HASHED_ADMIN_PASSWORD as string);
-    return usernameMatch && passwordMatch;
-  } catch {
-    return false;
-  }
-}
+// Protected by middleware
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if ((await isauthenticated(req)) === false) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
     const { id } = await params;
     const pincodeId = parseInt(id);
@@ -47,10 +28,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if ((await isauthenticated(req)) === false) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
     const { id } = await params;
     const pincodeId = parseInt(id);

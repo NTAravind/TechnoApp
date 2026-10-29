@@ -123,6 +123,20 @@ model DeliverySettings {
   updatedAt         DateTime           @updatedAt
 }
 
+model StateDelivery {
+  id                Int               @id @default(autoincrement())
+  stateName         String            @unique         // e.g., "ANDHRA PRADESH"
+  isActive          Boolean           @default(true)  // Enable/disable delivery for entire state
+  chargeType        DeliveryChargeType @default(PERCENTAGE)
+  minCharge         Float              @default(0)
+  percentageCharge  Float              @default(8)
+  freeDeliveryAbove Float              @default(500)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([stateName])
+}
+
 model PincodeDelivery {
   id                Int               @id @default(autoincrement())
   pincode           String            @unique         // 6-digit pincode

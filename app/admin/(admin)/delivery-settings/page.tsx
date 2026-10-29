@@ -1,34 +1,37 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Truck, Percent, IndianRupee, Check, AlertTriangle, Loader2, MapPin, ExternalLink } from 'lucide-react';
-import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Truck, Search, MapPin, Check, AlertTriangle, Loader2, Save, X, Plus, Globe, Edit, Trash2, RotateCcw } from 'lucide-react';
 import { fcurrency } from '@/lib/utils';
 
-interface DeliverySettings {
+interface StateDelivery {
   id: number;
+  stateName: string;
   isActive: boolean;
   chargeType: 'FIXED' | 'PERCENTAGE' | 'BOTH';
   minCharge: number;
   percentageCharge: number;
   freeDeliveryAbove: number;
+  pincodesCount?: number;
 }
 
-interface PincodeValidation {
-  valid: boolean;
-  pincode?: string;
-  district?: string;
-  state?: string;
-  chargeType?: string;
-  minCharge?: number;
-  percentageCharge?: number;
-  freeDeliveryAbove?: number;
-  error?: string;
+interface PincodeDelivery {
+  id: number;
+  pincode: string;
+  district: string | null;
+  stateName: string | null;
+  isDelivery: boolean;
+  chargeType: 'FIXED' | 'PERCENTAGE' | 'BOTH';
+  minCharge: number | null;
+  percentageCharge: number | null;
 }
 
 function getAuthHeader(): HeadersInit {
@@ -39,444 +42,773 @@ function getAuthHeader(): HeadersInit {
   return {};
 }
 
-export default function DeliverySettingsPage() {
-  const [settings, setSettings] = useState<DeliverySettings | null>(null);
+interface StateOption {
+  stateName: string;
+  hasSettings: boolean;
+}
+
+interface PincodeOption {
+  pincode: string;
+  district: string | null;
+  stateName: string | null;
+}
+
+export default function DeliveryManagementPage() {
+  const [states, setStates] = useState<StateDelivery[]>([]);
+  const [pincodeResults, setPincodeResults] = useState<PincodeDelivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   
-  const [formData, setFormData] = useState({
+  const [activeTab, setActiveTab] = useState<'states' | 'pincodes'>('states');
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const [showStateDialog, setShowStateDialog] = useState(false);
+  const [showPincodeDialog, setShowPincodeDialog] = useState(false);
+  const [editingState, setEditingState] = useState<StateDelivery | null>(null);
+  const [editingPincode, setEditingPincode] = useState<PincodeDelivery | null>(null);
+  
+  const [stateForm, setStateForm] = useState({
+    stateName: '',
+    isActive: true,
     chargeType: 'PERCENTAGE' as 'FIXED' | 'PERCENTAGE' | 'BOTH',
     minCharge: 0,
     percentageCharge: 8,
     freeDeliveryAbove: 500,
-    isActive: true,
+  });
+  
+  const [pincodeForm, setPincodeForm] = useState({
+    pincode: '',
+    isDelivery: true,
+    chargeType: 'PERCENTAGE' as 'FIXED' | 'PERCENTAGE' | 'BOTH',
+    minCharge: 0,
+    percentageCharge: 8,
   });
 
-  const [testPincode, setTestPincode] = useState('');
-  const [pincodeResult, setPincodeResult] = useState<PincodeValidation | null>(null);
-  const [testingPincode, setTestingPincode] = useState(false);
+  const [stateSuggestions, setStateSuggestions] = useState<StateOption[]>([]);
+  const [pincodeSuggestions, setPincodeSuggestions] = useState<PincodeOption[]>([]);
+  const [showStateSuggestions, setShowStateSuggestions] = useState(false);
+  const [showPincodeSuggestions, setShowPincodeSuggestions] = useState(false);
 
   useEffect(() => {
-    fetchSettings();
+    fetchStates();
   }, []);
 
-  const fetchSettings = async () => {
+  const fetchStates = async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/delivery-settings', {
-        headers: getAuthHeader(),
-      });
-      if (!res.ok && res.status === 401) {
-        window.location.href = '/admin/login';
-        return;
+      const res = await fetch('/api/delivery-states', { headers: getAuthHeader() });
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.location.href = '/admin/login';
+          return;
+        }
+        throw new Error('Failed to fetch');
       }
       const data = await res.json();
-      setSettings(data);
-      setFormData({
-        chargeType: data.chargeType || 'PERCENTAGE',
-        minCharge: data.minCharge || 0,
-        percentageCharge: data.percentageCharge || 8,
-        freeDeliveryAbove: data.freeDeliveryAbove || 500,
-        isActive: data.isActive ?? true,
-      });
+      setStates(data);
     } catch (error) {
-      console.error('Failed to fetch settings:', error);
+      console.error('Failed to fetch states:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    setMessage(null);
+  const searchPincodes = async () => {
+    if (!searchQuery || searchQuery.length < 2) return;
+    
+    setLoading(true);
     try {
-      const res = await fetch('/api/delivery-settings', {
+      const res = await fetch(`/api/pincodes?pincode=${searchQuery}&limit=50`, { headers: getAuthHeader() });
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.location.href = '/admin/login';
+          return;
+        }
+        throw new Error('Failed to search');
+      }
+      const data = await res.json();
+      setPincodeResults(data);
+      setActiveTab('pincodes');
+    } catch (error) {
+      console.error('Failed to search pincodes:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const searchStateSuggestions = async (query: string) => {
+    if (!query || query.length < 2) {
+      setStateSuggestions([]);
+      return;
+    }
+    
+    try {
+      const res = await fetch(`/api/delivery-states?search=${query}`, { headers: getAuthHeader() });
+      if (res.ok) {
+        const data = await res.json();
+        setStateSuggestions(data.map((s: any) => ({ stateName: s.stateName, hasSettings: true })));
+      }
+    } catch (error) {
+      console.error('Failed to search states:', error);
+    }
+  };
+
+  const searchPincodeSuggestions = async (query: string) => {
+    if (!query || query.length < 2) {
+      setPincodeSuggestions([]);
+      return;
+    }
+    
+    try {
+      const res = await fetch(`/api/pincodes?pincode=${query}&limit=10`, { headers: getAuthHeader() });
+      if (res.ok) {
+        const data = await res.json();
+        setPincodeSuggestions(data.map((p: any) => ({ pincode: p.pincode, district: p.district, stateName: p.stateName })));
+      }
+    } catch (error) {
+      console.error('Failed to search pincodes:', error);
+    }
+  };
+
+  const handleToggleState = async (state: StateDelivery) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/delivery-states/${state.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify(formData),
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ isActive: !state.isActive }),
       });
       
       if (res.ok) {
-        setMessage({ type: 'success', text: 'Settings saved successfully!' });
-        fetchSettings();
-      } else if (res.status === 401) {
-        window.location.href = '/admin/login';
-      } else {
-        throw new Error('Failed to save');
+        setStates(prev => prev.map(s => s.id === state.id ? { ...s, isActive: !s.isActive } : s));
+        setMessage({ type: 'success', text: `Delivery ${!state.isActive ? 'enabled' : 'disabled'} for ${state.stateName}` });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to save settings. Please try again.' });
+      setMessage({ type: 'error', text: 'Failed to update' });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleTestPincode = async () => {
-    if (!testPincode || testPincode.length !== 6) {
-      setPincodeResult({ valid: false, error: 'Please enter a valid 6-digit pincode' });
-      return;
-    }
-
-    setTestingPincode(true);
+  const handleTogglePincode = async (pincode: PincodeDelivery) => {
+    setSaving(true);
     try {
-      const res = await fetch(`/api/pincode?pincode=${testPincode}`);
-      const data = await res.json();
-      setPincodeResult(data);
+      const res = await fetch(`/api/pincodes/${pincode.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ isDelivery: !pincode.isDelivery }),
+      });
+      
+      if (res.ok) {
+        setPincodeResults(prev => prev.map(p => p.id === pincode.id ? { ...p, isDelivery: !p.isDelivery } : p));
+        setMessage({ type: 'success', text: `Delivery ${!pincode.isDelivery ? 'enabled' : 'disabled'} for ${pincode.pincode}` });
+      }
     } catch (error) {
-      setPincodeResult({ valid: false, error: 'Failed to validate pincode' });
+      setMessage({ type: 'error', text: 'Failed to update' });
     } finally {
-      setTestingPincode(false);
+      setSaving(false);
     }
   };
 
+  const handleAddState = async () => {
+    if (!stateForm.stateName) {
+      setMessage({ type: 'error', text: 'State name is required' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch('/api/delivery-states', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(stateForm),
+      });
+      
+      if (res.ok) {
+        const newState = await res.json();
+        setStates(prev => [...prev, newState]);
+        setShowStateDialog(false);
+        setStateForm({
+          stateName: '',
+          isActive: true,
+          chargeType: 'PERCENTAGE',
+          minCharge: 0,
+          percentageCharge: 8,
+          freeDeliveryAbove: 500,
+        });
+        setMessage({ type: 'success', text: `Delivery settings added for ${stateForm.stateName}` });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to add state' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditState = (state: StateDelivery) => {
+    setEditingState(state);
+    setStateForm({
+      stateName: state.stateName,
+      isActive: state.isActive,
+      chargeType: state.chargeType,
+      minCharge: state.minCharge,
+      percentageCharge: state.percentageCharge,
+      freeDeliveryAbove: state.freeDeliveryAbove,
+    });
+    setShowStateDialog(true);
+  };
+
+  const handleUpdateState = async () => {
+    if (!editingState) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/delivery-states/${editingState.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(stateForm),
+      });
+      
+      if (res.ok) {
+        const updated = await res.json();
+        setStates(prev => prev.map(s => s.id === editingState.id ? updated : s));
+        setShowStateDialog(false);
+        setEditingState(null);
+        setMessage({ type: 'success', text: 'State settings updated' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to update state' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddPincode = async () => {
+    if (!pincodeForm.pincode || pincodeForm.pincode.length !== 6) {
+      setMessage({ type: 'error', text: 'Valid 6-digit pincode is required' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch('/api/pincodes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(pincodeForm),
+      });
+      
+      if (res.ok) {
+        const newPincode = await res.json();
+        setPincodeResults(prev => [newPincode, ...prev]);
+        setShowPincodeDialog(false);
+        setPincodeForm({
+          pincode: '',
+          isDelivery: true,
+          chargeType: 'PERCENTAGE',
+          minCharge: 0,
+          percentageCharge: 8,
+        });
+        setMessage({ type: 'success', text: `Pincode ${pincodeForm.pincode} added` });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to add pincode' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditPincode = (pincode: PincodeDelivery) => {
+    setEditingPincode(pincode);
+    setPincodeForm({
+      pincode: pincode.pincode,
+      isDelivery: pincode.isDelivery,
+      chargeType: pincode.chargeType,
+      minCharge: pincode.minCharge ?? 0,
+      percentageCharge: pincode.percentageCharge ?? 8,
+    });
+    setShowPincodeDialog(true);
+  };
+
+  const handleUpdatePincode = async () => {
+    if (!editingPincode) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/pincodes/${editingPincode.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(pincodeForm),
+      });
+      
+      if (res.ok) {
+        const updated = await res.json();
+        setPincodeResults(prev => prev.map(p => p.id === editingPincode.id ? updated : p));
+        setShowPincodeDialog(false);
+        setEditingPincode(null);
+        setMessage({ type: 'success', text: 'Pincode settings updated' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to update pincode' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const filteredStates = useMemo(() => {
+    if (!searchQuery) return states;
+    const query = searchQuery.toLowerCase();
+    return states.filter(s => s.stateName.toLowerCase().includes(query));
+  }, [states, searchQuery]);
+
   const getChargeTypeLabel = (type: string) => {
     switch (type) {
-      case 'FIXED': return 'Fixed Charge';
-      case 'PERCENTAGE': return 'Percentage of Cart';
-      case 'BOTH': return 'Min Charge or Percentage (whichever is higher)';
+      case 'FIXED': return 'Fixed';
+      case 'PERCENTAGE': return '%';
+      case 'BOTH': return 'Min/%';
       default: return type;
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const handleResetAllSettings = async () => {
+    if (!confirm('Are you sure you want to reset delivery settings for all pincodes? This will clear all custom delivery settings.')) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch('/api/pincodes?action=reset-all', {
+        method: 'DELETE',
+        headers: getAuthHeader(),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setMessage({ type: 'success', text: `Reset delivery settings for ${data.updatedCount} pincodes` });
+        if (pincodeResults.length > 0) {
+          setPincodeResults(prev => prev.map(p => ({
+            ...p,
+            isDelivery: true,
+            chargeType: 'PERCENTAGE',
+            minCharge: null,
+            percentageCharge: null,
+          })));
+        }
+      } else {
+        setMessage({ type: 'error', text: 'Failed to reset settings' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to reset settings' });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center gap-3 mb-8">
-          <Truck className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold">Delivery Settings</h1>
-            <p className="text-gray-600">Configure delivery charges based on pincodes</p>
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <Truck className="h-8 w-8 text-primary" />
+            <div>
+              <h1 className="text-3xl font-bold">Delivery Management</h1>
+              <p className="text-gray-600">Configure delivery charges by state or pincode</p>
+            </div>
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Default Delivery Charges</CardTitle>
-            <CardDescription>
-              These settings apply when no specific pincode override is configured
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="isActive" className="flex items-center gap-2 cursor-pointer">
-                Enable Delivery Charges
-              </Label>
-              <button
-                id="isActive"
-                onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  formData.isActive ? 'bg-primary' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    formData.isActive ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
+        {message && (
+          <div className={`p-4 rounded-lg ${
+            message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'
+          }`}>
+            {message.type === 'success' ? <Check className="h-5 w-5 inline mr-2" /> : <AlertTriangle className="h-5 w-5 inline mr-2" />}
+            {message.text}
+          </div>
+        )}
 
-            <div className="grid gap-4">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex-1 max-w-md">
+            <Input
+              placeholder="Search state or pincode..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && searchPincodes()}
+            />
+          </div>
+          <Button variant="outline" onClick={searchPincodes}>
+            <Search className="h-4 w-4 mr-2" />
+            Search
+          </Button>
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            variant={activeTab === 'states' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('states')}
+          >
+            <Globe className="h-4 w-4 mr-2" />
+            By State ({states.length})
+          </Button>
+          <Button
+            variant={activeTab === 'pincodes' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('pincodes')}
+          >
+            <MapPin className="h-4 w-4 mr-2" />
+            By Pincode ({pincodeResults.length})
+          </Button>
+        </div>
+
+        {activeTab === 'states' && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Delivery by State</CardTitle>
+                <CardDescription>Manage delivery charges by state</CardDescription>
+              </div>
+              <Button onClick={() => { setEditingState(null); setShowStateDialog(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add State
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : filteredStates.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No states found. Add delivery settings for a state to get started.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-3 px-4">Status</th>
+                        <th className="text-left py-3 px-4">State</th>
+                        <th className="text-left py-3 px-4">Type</th>
+                        <th className="text-left py-3 px-4">Rate</th>
+                        <th className="text-left py-3 px-4">Free Above</th>
+                        <th className="text-left py-3 px-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredStates.map((state) => (
+                        <tr key={state.id} className="border-b hover:bg-gray-50">
+                          <td className="py-3 px-4">
+                            <Switch
+                              checked={state.isActive}
+                              onCheckedChange={() => handleToggleState(state)}
+                              disabled={saving}
+                            />
+                          </td>
+                          <td className="py-3 px-4 font-medium">{state.stateName}</td>
+                          <td className="py-3 px-4">
+                            <Badge variant="outline">{getChargeTypeLabel(state.chargeType)}</Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            {state.chargeType === 'FIXED' 
+                              ? `₹${state.minCharge}` 
+                              : `${state.percentageCharge}%`}
+                          </td>
+                          <td className="py-3 px-4">₹{state.freeDeliveryAbove}</td>
+                          <td className="py-3 px-4">
+                            <Button variant="ghost" size="sm" onClick={() => handleEditState(state)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === 'pincodes' && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Delivery by Pincode</CardTitle>
+                <CardDescription>Manage specific pincodes</CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleResetAllSettings} disabled={saving}>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Reset All
+                </Button>
+                <Button onClick={() => { setEditingPincode(null); setShowPincodeDialog(true); }}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Pincode
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {pincodeResults.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  Search for pincodes above to manage specific locations.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-3 px-4">Status</th>
+                        <th className="text-left py-3 px-4">Pincode</th>
+                        <th className="text-left py-3 px-4">District</th>
+                        <th className="text-left py-3 px-4">State</th>
+                        <th className="text-left py-3 px-4">Type</th>
+                        <th className="text-left py-3 px-4">Rate</th>
+                        <th className="text-left py-3 px-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pincodeResults.map((pincode) => (
+                        <tr key={pincode.id} className="border-b hover:bg-gray-50">
+                          <td className="py-3 px-4">
+                            <Switch
+                              checked={pincode.isDelivery}
+                              onCheckedChange={() => handleTogglePincode(pincode)}
+                              disabled={saving}
+                            />
+                          </td>
+                          <td className="py-3 px-4 font-medium">{pincode.pincode}</td>
+                          <td className="py-3 px-4">{pincode.district || '-'}</td>
+                          <td className="py-3 px-4">{pincode.stateName || '-'}</td>
+                          <td className="py-3 px-4">
+                            <Badge variant="outline">{getChargeTypeLabel(pincode.chargeType)}</Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            {pincode.chargeType === 'FIXED' 
+                              ? `₹${pincode.minCharge}` 
+                              : `${pincode.percentageCharge}%`}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Button variant="ghost" size="sm" onClick={() => handleEditPincode(pincode)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <Dialog open={showStateDialog} onOpenChange={setShowStateDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingState ? 'Edit State Delivery' : 'Add State Delivery'}</DialogTitle>
+              <DialogDescription>
+                {editingState 
+                  ? `Update delivery settings for ${editingState.stateName}` 
+                  : 'Add delivery settings for a state. This will apply to all pincodes in that state.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {!editingState && (
+                <div className="space-y-2 relative">
+                  <Label>State Name</Label>
+                  <Input
+                    placeholder="Search state..."
+                    value={stateForm.stateName}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase();
+                      setStateForm({ ...stateForm, stateName: val });
+                      searchStateSuggestions(val);
+                      setShowStateSuggestions(true);
+                    }}
+                    onFocus={() => setShowStateSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowStateSuggestions(false), 200)}
+                  />
+                  {showStateSuggestions && stateSuggestions.length > 0 && (
+                    <div className="absolute z-50 w-full bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                      {stateSuggestions.map((s, idx) => (
+                        <div
+                          key={`${s.stateName}-${idx}`}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center"
+                          onMouseDown={() => {
+                            setStateForm({ ...stateForm, stateName: s.stateName });
+                            setShowStateSuggestions(false);
+                          }}
+                        >
+                          <span>{s.stateName}</span>
+                          <Badge variant={s.hasSettings ? 'default' : 'outline'}>{s.hasSettings ? 'Configured' : 'New'}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <Label>Delivery Active</Label>
+                <Switch
+                  checked={stateForm.isActive}
+                  onCheckedChange={(checked) => setStateForm({ ...stateForm, isActive: checked })}
+                />
+              </div>
               <div className="space-y-2">
                 <Label>Charge Type</Label>
                 <Select
-                  value={formData.chargeType}
-                  onValueChange={(value: 'FIXED' | 'PERCENTAGE' | 'BOTH') =>
-                    setFormData({ ...formData, chargeType: value })
-                  }
+                  value={stateForm.chargeType}
+                  onValueChange={(value: 'FIXED' | 'PERCENTAGE' | 'BOTH') => setStateForm({ ...stateForm, chargeType: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="FIXED">
-                      <div className="flex items-center gap-2">
-                        <IndianRupee className="h-4 w-4" />
-                        Fixed Charge Only
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="PERCENTAGE">
-                      <div className="flex items-center gap-2">
-                        <Percent className="h-4 w-4" />
-                        Percentage of Cart Total
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="BOTH">
-                      <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4" />
-                        Min Charge or Percentage (whichever is higher)
-                      </div>
-                    </SelectItem>
+                    <SelectItem value="FIXED">Fixed Amount</SelectItem>
+                    <SelectItem value="PERCENTAGE">Percentage</SelectItem>
+                    <SelectItem value="BOTH">Min or Percentage</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
-              {(formData.chargeType === 'FIXED' || formData.chargeType === 'BOTH') && (
+              {(stateForm.chargeType === 'FIXED' || stateForm.chargeType === 'BOTH') && (
                 <div className="space-y-2">
-                  <Label htmlFor="minCharge">Minimum Charge (₹)</Label>
+                  <Label>Minimum Charge (₹)</Label>
                   <Input
-                    id="minCharge"
                     type="number"
-                    min="0"
-                    value={formData.minCharge}
-                    onChange={(e) =>
-                      setFormData({ ...formData, minCharge: parseFloat(e.target.value) || 0 })
-                    }
-                    placeholder="e.g., 50"
+                    value={stateForm.minCharge}
+                    onChange={(e) => setStateForm({ ...stateForm, minCharge: parseFloat(e.target.value) || 0 })}
                   />
-                  <p className="text-xs text-gray-500">
-                    This is the minimum delivery charge regardless of cart value
-                  </p>
                 </div>
               )}
-
-              {(formData.chargeType === 'PERCENTAGE' || formData.chargeType === 'BOTH') && (
+              {(stateForm.chargeType === 'PERCENTAGE' || stateForm.chargeType === 'BOTH') && (
                 <div className="space-y-2">
-                  <Label htmlFor="percentageCharge">Percentage Charge (%)</Label>
+                  <Label>Percentage (%)</Label>
                   <Input
-                    id="percentageCharge"
                     type="number"
-                    min="0"
-                    max="100"
-                    step="0.5"
-                    value={formData.percentageCharge}
-                    onChange={(e) =>
-                      setFormData({ ...formData, percentageCharge: parseFloat(e.target.value) || 0 })
-                    }
-                    placeholder="e.g., 8"
+                    value={stateForm.percentageCharge}
+                    onChange={(e) => setStateForm({ ...stateForm, percentageCharge: parseFloat(e.target.value) || 0 })}
                   />
-                  <p className="text-xs text-gray-500">
-                    Percentage of the cart subtotal to charge as delivery fee
-                  </p>
                 </div>
               )}
-
               <div className="space-y-2">
-                <Label htmlFor="freeDeliveryAbove">Free Delivery Above (₹)</Label>
+                <Label>Free Delivery Above (₹)</Label>
                 <Input
-                  id="freeDeliveryAbove"
                   type="number"
-                  min="0"
-                  value={formData.freeDeliveryAbove}
-                  onChange={(e) =>
-                    setFormData({ ...formData, freeDeliveryAbove: parseFloat(e.target.value) || 0 })
-                  }
-                  placeholder="e.g., 500"
+                  value={stateForm.freeDeliveryAbove}
+                  onChange={(e) => setStateForm({ ...stateForm, freeDeliveryAbove: parseFloat(e.target.value) || 0 })}
                 />
-                <p className="text-xs text-gray-500">
-                  Orders above this amount will have free delivery
-                </p>
               </div>
             </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowStateDialog(false)}>Cancel</Button>
+              <Button onClick={editingState ? handleUpdateState : handleAddState} disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {editingState ? 'Update' : 'Add State'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-            {message && (
-              <div
-                className={`p-3 rounded-md text-sm ${
-                  message.type === 'success'
-                    ? 'bg-green-50 text-green-800 border border-green-200'
-                    : 'bg-red-50 text-red-800 border border-red-200'
-                }`}
-              >
-                {message.text}
-              </div>
-            )}
-
-            <Button onClick={handleSave} disabled={saving} className="w-full">
-              {saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Check className="mr-2 h-4 w-4" />
-                  Save Settings
-                </>
+        <Dialog open={showPincodeDialog} onOpenChange={setShowPincodeDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingPincode ? 'Edit Pincode Delivery' : 'Add Pincode Delivery'}</DialogTitle>
+              <DialogDescription>
+                {editingPincode 
+                  ? `Update delivery settings for ${editingPincode.pincode}` 
+                  : 'Add delivery settings for a specific pincode.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {!editingPincode && (
+                <div className="space-y-2 relative">
+                  <Label>Pincode</Label>
+                  <Input
+                    placeholder="Search pincode..."
+                    value={pincodeForm.pincode}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setPincodeForm({ ...pincodeForm, pincode: val });
+                      searchPincodeSuggestions(val);
+                      setShowPincodeSuggestions(true);
+                    }}
+                    onFocus={() => setShowPincodeSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowPincodeSuggestions(false), 200)}
+                    maxLength={6}
+                  />
+                  {showPincodeSuggestions && pincodeSuggestions.length > 0 && (
+                    <div className="absolute z-50 w-full bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                      {pincodeSuggestions.map((p, idx) => (
+                        <div
+                          key={`${p.pincode}-${idx}`}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center"
+                          onMouseDown={() => {
+                            setPincodeForm({ ...pincodeForm, pincode: p.pincode });
+                            setShowPincodeSuggestions(false);
+                          }}
+                        >
+                          <span className="font-medium">{p.pincode}</span>
+                          <span className="text-sm text-gray-500">{p.district}, {p.stateName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Preview</CardTitle>
-            <CardDescription>
-              See how delivery charges will be calculated based on current settings
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="p-4 bg-gray-50 rounded-lg space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Cart Value:</span>
-                  <span className="font-medium">₹200</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Charge Type:</span>
-                  <span className="font-medium">{getChargeTypeLabel(formData.chargeType)}</span>
-                </div>
-                {formData.chargeType !== 'FIXED' && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Percentage:</span>
-                    <span className="font-medium">{formData.percentageCharge}%</span>
-                  </div>
-                )}
-                {formData.chargeType !== 'PERCENTAGE' && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Minimum Charge:</span>
-                    <span className="font-medium">{fcurrency(formData.minCharge)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Free Delivery Above:</span>
-                  <span className="font-medium">{fcurrency(formData.freeDeliveryAbove)}</span>
-                </div>
-                <div className="border-t pt-2 flex justify-between font-semibold">
-                  <span>Delivery Charge:</span>
-                  <span className="text-primary">
-                    {200 >= formData.freeDeliveryAbove
-                      ? 'Free'
-                      : formData.chargeType === 'FIXED'
-                      ? fcurrency(formData.minCharge)
-                      : formData.chargeType === 'PERCENTAGE'
-                      ? fcurrency((200 * formData.percentageCharge) / 100)
-                      : fcurrency(
-                          Math.max(
-                            formData.minCharge,
-                            (200 * formData.percentageCharge) / 100
-                          )
-                        )}
-                  </span>
-                </div>
+              <div className="flex items-center justify-between">
+                <Label>Delivery Active</Label>
+                <Switch
+                  checked={pincodeForm.isDelivery}
+                  onCheckedChange={(checked) => setPincodeForm({ ...pincodeForm, isDelivery: checked })}
+                />
               </div>
-
-              <div className="p-4 bg-gray-50 rounded-lg space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Cart Value:</span>
-                  <span className="font-medium">₹1,000</span>
-                </div>
-                <div className="border-t pt-2 flex justify-between font-semibold">
-                  <span>Delivery Charge:</span>
-                  <span className="text-primary">
-                    {1000 >= formData.freeDeliveryAbove
-                      ? 'Free'
-                      : formData.chargeType === 'FIXED'
-                      ? fcurrency(formData.minCharge)
-                      : formData.chargeType === 'PERCENTAGE'
-                      ? fcurrency((1000 * formData.percentageCharge) / 100)
-                      : fcurrency(
-                          Math.max(
-                            formData.minCharge,
-                            (1000 * formData.percentageCharge) / 100
-                          )
-                        )}
-                  </span>
-                </div>
+              <div className="space-y-2">
+                <Label>Charge Type</Label>
+                <Select
+                  value={pincodeForm.chargeType}
+                  onValueChange={(value: 'FIXED' | 'PERCENTAGE' | 'BOTH') => setPincodeForm({ ...pincodeForm, chargeType: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="FIXED">Fixed Amount</SelectItem>
+                    <SelectItem value="PERCENTAGE">Percentage</SelectItem>
+                    <SelectItem value="BOTH">Min or Percentage</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+              {(pincodeForm.chargeType === 'FIXED' || pincodeForm.chargeType === 'BOTH') && (
+                <div className="space-y-2">
+                  <Label>Minimum Charge (₹)</Label>
+                  <Input
+                    type="number"
+                    value={pincodeForm.minCharge}
+                    onChange={(e) => setPincodeForm({ ...pincodeForm, minCharge: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              )}
+              {(pincodeForm.chargeType === 'PERCENTAGE' || pincodeForm.chargeType === 'BOTH') && (
+                <div className="space-y-2">
+                  <Label>Percentage (%)</Label>
+                  <Input
+                    type="number"
+                    value={pincodeForm.percentageCharge}
+                    onChange={(e) => setPincodeForm({ ...pincodeForm, percentageCharge: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              )}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Test Pincode Validation
-            </CardTitle>
-            <CardDescription>
-              Test if a pincode is serviceable and see the calculated delivery charge
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Input
-                type="text"
-                placeholder="Enter 6-digit pincode"
-                value={testPincode}
-                onChange={(e) => setTestPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                maxLength={6}
-                className="flex-1"
-              />
-              <Button onClick={handleTestPincode} disabled={testingPincode || testPincode.length !== 6}>
-                {testingPincode ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  'Test'
-                )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPincodeDialog(false)}>Cancel</Button>
+              <Button onClick={editingPincode ? handleUpdatePincode : handleAddPincode} disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {editingPincode ? 'Update' : 'Add Pincode'}
               </Button>
-            </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-            {pincodeResult && (
-              <div
-                className={`p-4 rounded-lg ${
-                  pincodeResult.valid
-                    ? 'bg-green-50 border border-green-200'
-                    : 'bg-red-50 border border-red-200'
-                }`}
-              >
-                {pincodeResult.valid ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-green-800 font-medium">
-                      <Check className="h-5 w-5" />
-                      Delivery Available
-                    </div>
-                    <div className="text-sm text-green-700">
-                      <p><strong>Pincode:</strong> {pincodeResult.pincode}</p>
-                      {pincodeResult.district && <p><strong>District:</strong> {pincodeResult.district}</p>}
-                      {pincodeResult.state && <p><strong>State:</strong> {pincodeResult.state}</p>}
-                      <p><strong>Charge Type:</strong> {getChargeTypeLabel(pincodeResult.chargeType || 'PERCENTAGE')}</p>
-                      {pincodeResult.percentageCharge && (
-                        <p><strong>Percentage:</strong> {pincodeResult.percentageCharge}%</p>
-                      )}
-                      {pincodeResult.minCharge && (
-                        <p><strong>Minimum Charge:</strong> ₹{pincodeResult.minCharge}</p>
-                      )}
-                      {pincodeResult.freeDeliveryAbove && (
-                        <p><strong>Free Above:</strong> ₹{pincodeResult.freeDeliveryAbove}</p>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-red-800">
-                    <AlertTriangle className="h-5 w-5" />
-                    <span>{pincodeResult.error}</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Per-Pincode Configuration</CardTitle>
-            <CardDescription>
-              Set different delivery charges for specific pincodes
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/admin/delivery-settings/pincodes">
-              <Button variant="outline" className="w-full">
-                <MapPin className="mr-2 h-4 w-4" />
-                Manage Pincode Charges
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+        <div className="h-24" />
       </div>
-      <div className="h-24" />
     </div>
   );
 }

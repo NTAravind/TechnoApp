@@ -35,12 +35,44 @@ export async function GET(req: NextRequest) {
       }, { status: 200 });
     }
 
+    // Get default settings
     const settings = await prisma.deliverySettings.findFirst();
     
-    const chargeType = pincodeData.chargeType || settings?.chargeType || 'PERCENTAGE';
-    const minCharge = pincodeData.minCharge ?? settings?.minCharge ?? 0;
-    const percentageCharge = pincodeData.percentageCharge ?? settings?.percentageCharge ?? 8;
-    const freeDeliveryAbove = settings?.freeDeliveryAbove ?? 500;
+    // Check for state-level settings first (priority)
+    let chargeType = pincodeData.chargeType;
+    let minCharge = pincodeData.minCharge;
+    let percentageCharge = pincodeData.percentageCharge;
+    let freeDeliveryAbove = settings?.freeDeliveryAbove ?? 500;
+
+    // Check if pincode has overrides, otherwise check state
+    const hasPincodeOverrides = pincodeData.minCharge !== null || pincodeData.percentageCharge !== null;
+
+    if (!hasPincodeOverrides && pincodeData.stateName) {
+      const stateSettings = await prisma.stateDelivery.findUnique({
+        where: { stateName: pincodeData.stateName }
+      });
+
+      if (stateSettings && stateSettings.isActive) {
+        chargeType = stateSettings.chargeType;
+        minCharge = stateSettings.minCharge;
+        percentageCharge = stateSettings.percentageCharge;
+        freeDeliveryAbove = stateSettings.freeDeliveryAbove;
+      } else {
+        // Use defaults
+        chargeType = settings?.chargeType || 'PERCENTAGE';
+        minCharge = settings?.minCharge ?? 0;
+        percentageCharge = settings?.percentageCharge ?? 8;
+      }
+    } else if (hasPincodeOverrides) {
+      // Use pincode-specific overrides
+      minCharge = pincodeData.minCharge ?? 0;
+      percentageCharge = pincodeData.percentageCharge ?? 8;
+    } else {
+      // Use defaults
+      chargeType = settings?.chargeType || 'PERCENTAGE';
+      minCharge = settings?.minCharge ?? 0;
+      percentageCharge = settings?.percentageCharge ?? 8;
+    }
 
     return NextResponse.json({
       valid: true,
